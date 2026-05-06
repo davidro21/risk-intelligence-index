@@ -1,0 +1,18 @@
+[build]
+  base = "frontend"
+  command = "node build-config.js"
+  publish = "."
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Long cache for static assets, no cache for the entrypoint and config.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

@@ -1,0 +1,874 @@
+================================================================================
+RISK INTELLIGENCE INDEX — CLAUDE CODE DEPLOYMENT BRIEF
+================================================================================
+Keep this file in your risk-intelligence-index folder alongside index.html.
+Paste the brief below into Claude Code as your opening message.
+Last updated: April 2026 — includes VIX live updates, AI Platforms Consensus,
+Enterprise Pulse Survey (with editable questions), Side-Panel Signal Briefings,
+VIX Driver explainer, WEF Global Risk Landscape chart (Frontline Insights),
+RAND Report figures (U.S. adult perceptions of global threats),
+and Interactive Risk Ranker with collapsible category sections (10 categories,
+85 topics) and localStorage persistence and survey export
+================================================================================
+
+
+PRE-FLIGHT CHECKLIST (complete before launching Claude Code)
+--------------------------------------------------------------------------------
+[ ] Git installed — git-scm.com
+[ ] Node.js (LTS) installed — nodejs.org
+[ ] GitHub CLI installed — cli.github.com
+[ ] GitHub account created — github.com
+[ ] GitHub repository created — named: risk-intelligence-index (set to Private)
+[ ] GitHub CLI authenticated — run: gh auth login
+[ ] Claude Code installed — run: npm install -g @anthropic-ai/claude-code
+[ ] Supabase account created — supabase.com (free tier)
+[ ] Supabase project created — copy the database connection string
+[ ] Railway account created — railway.app (free tier, connect GitHub account)
+[ ] Netlify account created — netlify.com (already have for The WHIP Index)
+[ ] Kalshi API key obtained — kalshi.com > Profile > API Access (free)
+[ ] FRED API key obtained — fred.stlouisfed.org > API Keys (free)
+[ ] Anthropic API key obtained — console.anthropic.com > API Keys
+[ ] index.html placed in folder: risk-intelligence-index/index.html
+
+OPTIONAL — for Phase 3 AI Consensus upgrades (not needed at launch):
+[ ] OpenAI API key — platform.openai.com (GPT-4o, ~$0.005/market/day)
+[ ] Google AI Studio key — aistudio.google.com (Gemini, free tier available)
+[ ] Mistral API key — console.mistral.ai (~$0.002/market/day)
+[ ] DeepSeek API key — platform.deepseek.com (~$0.001/market/day)
+[ ] Perplexity API key — perplexity.ai/api (~$0.005/market/day)
+
+
+HOW TO LAUNCH CLAUDE CODE
+--------------------------------------------------------------------------------
+1. Open Terminal (Mac) or Command Prompt (Windows)
+2. Navigate to your project folder:
+   Mac:     cd ~/Desktop/risk-intelligence-index
+   Windows: cd %USERPROFILE%\Desktop\risk-intelligence-index
+3. Type: claude
+4. Press Enter
+5. Paste the entire brief below as your first message
+
+
+================================================================================
+OPENING BRIEF — PASTE THIS INTO CLAUDE CODE
+================================================================================
+
+I have an HTML file called index.html in this folder. It is a Risk Intelligence
+Index dashboard. Please read it thoroughly before doing anything else.
+
+Once you have read it, I need you to build a complete backend server and deploy
+the entire project so it is live on the web. Here is exactly what needs to be
+built:
+
+
+BACKEND REQUIREMENTS:
+--------------------------------------------------------------------------------
+Build a Node.js Express backend server. The HTML file already has a variable
+called PROXY_BASE_URL at the top — once the backend is running, this variable
+should point to the backend's URL so live data flows into the dashboard
+automatically.
+
+The backend needs to fetch data from the following sources and serve it to the
+HTML file:
+
+1. POLYMARKET
+Fetch from the Polymarket CLOB API (clob.polymarket.com) and Gamma API
+(gamma-api.polymarket.com). Fetch all active markets in these categories:
+politics, world, middle-east, russia-ukraine, nato, china, economics, crypto,
+stocks, fed, commodities, technology, ai, law, health, science.
+Filter to markets with at least $10,000 in 24-hour volume.
+Refresh prices every 30 seconds.
+Fetch metadata once on load and cache it.
+Fetch historical daily prices on demand when a market ID is requested.
+No API key required.
+
+2. KALSHI
+Fetch from the Kalshi REST API. Requires a free API key which I will provide.
+Fetch all open markets in these categories: geopolitics, foreign-policy,
+middle-east, russia, china, nato, politics, congress, president, supreme-court,
+elections, economics, fed, stocks, commodities, crypto, inflation, technology,
+ai, cybersecurity, legal, regulation, security, health, disease, fda.
+Filter to markets with at least $10,000 in 24-hour volume.
+Flatten all series into individual markets.
+Refresh every 30 seconds.
+Fetch history on demand.
+
+3. FRED + VIX LIVE UPDATES
+Fetch from the FRED API at api.stlouisfed.org. Requires a free API key which
+I will provide. Fetch these series:
+  VIXCLS            — VIX Volatility Index (daily close fallback)
+  SP500             — S&P 500
+  DGS10             — 10-Year Treasury Yield
+  FEDFUNDS          — Federal Funds Rate
+  CPIAUCSL          — US Inflation (CPI)
+  UNRATE            — Unemployment Rate
+  A191RL1Q225SBEA   — US GDP Growth
+  RECPROUSM156N     — US Recession Probability
+Refresh FRED daily at 6pm ET.
+Use the FRED release calendar endpoint to time monthly data releases precisely.
+Serve full history on demand.
+
+VIX INTRADAY — in addition to FRED daily close:
+Fetch intraday VIX data from the Yahoo Finance API (symbol: ^VIX) every 5
+minutes during US market hours (9:30am-4:00pm ET, Monday-Friday).
+Outside market hours and on weekends, use the most recent FRED VIXCLS daily
+close value as the displayed figure.
+Store both intraday and daily values in the fred_data table.
+The GET /api/fred endpoint must return a vix object with these fields:
+  value       — current VIX number
+  source      — "intraday" or "daily-close"
+  market_open — true/false indicating whether US markets are currently open
+  updated_at  — timestamp of last successful fetch
+This allows the dashboard to display a "Live" indicator next to the VIX during
+market hours and a "Close" indicator outside market hours.
+
+4. GJOPEN
+Scrape gjopen.com once daily.
+Extract all active question titles, current community probability estimates,
+number of forecasters, close dates, and recent probability history.
+Map questions to these categories: geo, uspol, fin, tech, cyber, legal,
+safety, medical.
+
+5. RSS NEWS
+Fetch and parse the following RSS feeds:
+
+Breaking news — refresh every 5 minutes:
+  feeds.reuters.com/reuters/topNews
+  feeds.reuters.com/Reuters/PoliticsNews
+  feeds.reuters.com/reuters/businessNews
+  apnews.com/rss/apf-topnews
+  feeds.bbci.co.uk/news/world/rss.xml
+  rss.politico.com/politics-news.xml
+  feeds.bloomberg.com/markets/news.rss
+  rss.nytimes.com/services/xml/rss/nyt/Politics.xml
+  feeds.washingtonpost.com/rss/politics
+  feeds.npr.org/1014/rss.xml
+  moxie.foxnews.com/google-publisher/politics.xml
+  feeds.nbcnews.com/nbcnews/public/news
+
+Specialist publications — refresh every 30 minutes:
+  cyberscoop.com/feed
+  krebsonsecurity.com/feed
+  statnews.com/feed
+  who.int/rss-feeds/news-english.xml
+
+Research institutions & think tanks — refresh once daily:
+  rand.org/feed.xml
+  cfr.org/rss/all
+  brookings.edu/feed
+  pewresearch.org/feed
+  news.gallup.com/rss
+  csis.org/feed
+  atlanticcouncil.org/feed
+  imf.org/en/Blogs/rss
+  belfercenter.org/feed
+
+For all RSS feeds:
+- Apply keyword filtering to assign each item to one or more of these category
+  IDs: geo, uspol, fin, tech, cyber, legal, safety, medical
+- Run sentiment scoring (positive/negative/neutral) on each item
+- Deduplicate by headline similarity within a 30-minute window
+- Deduplication source priority: Reuters > AP > Bloomberg > BBC > Politico >
+  all others
+
+Keyword filter mapping:
+  geo:     war, conflict, sanctions, NATO, China, Russia, Iran, missile,
+           treaty, summit, invasion, ceasefire
+  uspol:   Congress, Senate, House, Trump, Biden, election, midterm, SCOTUS,
+           White House, legislation, bill
+  fin:     Fed, Federal Reserve, interest rate, inflation, GDP, recession,
+           S&P, markets, stocks, bonds, crypto, Bitcoin
+  tech:    AI, artificial intelligence, tech, Silicon Valley, OpenAI, Nvidia,
+           semiconductor, regulation, data
+  cyber:   hack, breach, ransomware, cyberattack, malware, vulnerability,
+           NSA, CISA, infrastructure attack
+  legal:   court, ruling, lawsuit, antitrust, DOJ, SEC, FTC, verdict,
+           indictment, regulation, enforcement
+  safety:  terrorism, attack, shooting, explosion, threat, extremism, nuclear,
+           chemical weapon, bioterrorism
+  medical: outbreak, pandemic, virus, WHO, FDA, vaccine, disease, public
+           health, CDC, epidemic, variant
+
+6. AI PLATFORMS CONSENSUS
+Pre-compute AI Platforms Consensus probability estimates for every active
+market and non-monied signal once daily at 2:00am ET.
+
+For each market and signal, call the Claude API (claude-sonnet-4-20250514)
+with the following standardized prompt, replacing the bracketed fields:
+
+  "You are simulating how different AI platforms would independently assess
+  a risk signal's probability. Signal: [market name]. Category: [cat].
+  Current market/survey value: [prob]%. Date: [today].
+  Give realistic probability estimates that each major AI platform would
+  plausibly give, reflecting their known tendencies:
+  Claude: nuanced/cautious;
+  GPT-4o: slightly optimistic;
+  Gemini: data-driven/moderate;
+  Grok: contrarian/bold;
+  DeepSeek: quantitative/analytical;
+  Mistral: conservative/European-policy-aware;
+  Perplexity: search-grounded/news-anchored.
+  Estimates should reflect genuine variation — avoid clustering all models
+  within 2-3pp of each other.
+  Reply ONLY with valid JSON, no markdown fences:
+  {models:[
+    {id:'claude',pct:NUMBER},
+    {id:'deepseek',pct:NUMBER},
+    {id:'gemini',pct:NUMBER},
+    {id:'gpt4',pct:NUMBER},
+    {id:'grok',pct:NUMBER},
+    {id:'mistral',pct:NUMBER},
+    {id:'perplexity',pct:NUMBER}
+  ],consensus_note:'one sentence max 15 words on where models agree or diverge'}"
+
+Store all results in a database table called ai_consensus with fields:
+  market_id       — the market or signal ID
+  claude_pct      — Claude probability estimate
+  deepseek_pct    — DeepSeek probability estimate
+  gemini_pct      — Gemini probability estimate
+  gpt4_pct        — GPT-4o probability estimate
+  grok_pct        — Grok probability estimate
+  mistral_pct     — Mistral probability estimate
+  perplexity_pct  — Perplexity probability estimate
+  avg_pct         — rounded average across all seven models
+  spread          — difference between highest and lowest estimate
+  consensus_note  — the one-sentence summary from the model
+  computed_at     — timestamp of when this was computed
+
+Add a new API endpoint:
+  GET /api/consensus/:id
+  Returns the pre-computed consensus object for a given market or signal ID.
+  If no pre-computed result exists for an ID, fall back to a live Claude API
+  call using the same prompt above.
+
+Update index.html so the _spFetchConsensus function checks
+GET /api/consensus/:id first before making a live API call. This eliminates
+per-user API calls and makes the consensus section load instantly for users.
+
+The AI consensus daily job should process markets in batches of 20 to avoid
+rate limiting. Log any failures and retry failed markets in the next run.
+Estimated daily API cost for this job: $0.50-$1.00 at current Claude pricing
+for approximately 150-210 active markets and signals.
+
+NOTE ON FUTURE AI MODEL UPGRADES:
+The ai_consensus table and prompt are designed so that real API calls to
+OpenAI (GPT-4o), Google (Gemini), Mistral, DeepSeek, and Perplexity can
+replace Claude's simulated estimates for those models in a later phase,
+one model at a time, without changing the database schema or frontend.
+When real API keys for those models are provided, update the daily job to
+call each model's API directly for its own estimate.
+
+
+7. ENTERPRISE PULSE SURVEY
+The dashboard includes an Enterprise Pulse Survey feature that generates
+short internal survey questions for teams to pressure-test their awareness
+of specific risk signals. Users open it from either a specific signal in
+the index ("Pulse Survey" button on a signal card) or via the standalone
+"Build a Custom Survey" entry point.
+
+There are two generation flows, both currently implemented as direct calls
+from index.html to the Anthropic API. Both must be proxied through the
+backend so the Anthropic API key is never exposed to the browser.
+
+Flow A — Single-topic (called from a specific signal card):
+  Input:  signal name, category ID, current probability (if available),
+          industry label derived from category
+  Output: exactly 5 questions — 2 Likert (1-5), 2 Yes/No, 1 open-ended —
+          plus a one-sentence industry_context string
+  Prompt intent: plain-language, no jargon, questions built literally
+  around the topic; no "CRO lens", no "leadership vs frontline gap"
+  framing, no compound questions; questions ask what a working
+  professional would know or have an opinion on (awareness, expectations,
+  likelihood, concern level, organizational impact)
+
+Flow B — Custom multi-topic builder:
+  Input:  survey name, list of selected topics (signal + category),
+          optional sector calibration
+  Output: between 2 and 10 questions (scales with topic count, capped at
+          10), covering every selected topic at least once; mix of scale /
+          yes-no / open; plus a survey_title and one-sentence summary
+  Prompt intent: same plain-language constraints as Flow A
+
+Both prompts reply in strict JSON. JSON schemas are embedded in the
+existing index.html — the backend must preserve those exact field names:
+  questions:    [{num, text, type, low?, high?, placeholder?, topic?}]
+  industry_context | summary | survey_title
+
+Add these endpoints:
+  POST /api/pulse/generate-single
+    Body: {signal_name, category, probability, industry_label}
+    Returns: {questions, industry_context}
+
+  POST /api/pulse/generate-custom
+    Body: {survey_name, topics:[{sig, cat}], sector}
+    Returns: {survey_title, questions, summary}
+
+Editable questions UI (frontend-only, no backend changes needed):
+After generation, users can edit each question's text, change its response
+type (scale / yes-no / open), edit low/high scale labels or open-response
+placeholder, delete questions, and add their own blank questions via a
+"+ Add your own question" button. Question numbers renumber automatically.
+The backend only needs to produce the initial array — the frontend mutates
+it in memory before send.
+
+Delivery (Phase 2 of this feature — post-launch):
+The survey modal has a "Deliver" tab listing Slack, Microsoft Teams,
+Google Chat, Email, and Microsoft Forms. At launch these are presented as
+"Connect in settings to enable" placeholders. Post-launch, add:
+  POST /api/pulse/send
+    Body: {survey_title, questions, platforms:[...], settings:{anonymous,
+          expires_at, etc.}, recipients}
+  And per-platform OAuth integrations for Slack, Teams, Google Workspace,
+  and SMTP-based email delivery.
+
+Cost estimate: each survey generation ~$0.005-$0.010 in Claude API costs.
+Assume <100 surveys/day at launch — negligible daily cost.
+
+
+8. SIDE-PANEL SIGNAL BRIEFINGS
+When a user clicks any market or signal card in the index, a side panel
+opens showing a generated briefing: a 7-point trend sparkline, 3 driver
+bullets (title + one-sentence body), a "what to watch" event pointer, and
+a signal color. Currently implemented as a direct Anthropic API call from
+the frontend — must be proxied through the backend.
+
+Add endpoint:
+  POST /api/signal-briefing
+    Body: {signal_id, signal_name, category, probability, prev_probability}
+    Returns: {trend_pts:[7 numbers oldest-to-newest ending near current
+             value], drivers:[{title, body} x3], watch:{event, detail},
+             color:"#hex"}
+
+Caching strategy: cache results for 6 hours keyed on signal_id. Same
+signal re-opened within that window serves from cache. Invalidate cache
+when the underlying probability moves more than 3 percentage points.
+
+Store in a new table:
+  signal_briefings
+    signal_id       — market or signal ID
+    payload         — JSON of the full briefing
+    prob_at_compute — probability at time of compute (for invalidation)
+    computed_at     — timestamp
+
+Cost estimate: ~$0.003-$0.005 per briefing; with 6-hour caching assume
+~200-400 generations/day at peak → $0.60-$2.00/day.
+
+
+9. VIX DRIVER EXPLAINER
+The VIX card on the dashboard displays a short "what's driving the VIX
+today" explainer — a 2-3 sentence description of the single most important
+event/data release/market development moving the VIX, plus an up/down/flat
+direction indicator and an approximate change value. Currently a direct
+Anthropic API call — must be proxied through the backend.
+
+Add endpoint:
+  GET /api/vix-driver
+    Returns: {driver:"event name (5 words max)", detail:"2-3 sentence
+             explanation", direction:"up|down|flat", change:"e.g. +2.1 pts",
+             vix_value, computed_at}
+
+Refresh strategy: regenerate once every 30 minutes during US market hours
+(9:30am-4:00pm ET, Mon-Fri) and once at 9am and 5pm ET on non-market days.
+Cache the most recent result and serve it to all users from cache. No
+per-user API calls.
+
+Store in a new table (or reuse fred_data metadata):
+  vix_driver
+    id              — singleton row (always "latest")
+    payload         — JSON of the full driver object
+    vix_at_compute  — VIX value at time of compute
+    computed_at     — timestamp
+
+Cost estimate: ~48 generations/day → under $0.25/day.
+
+
+STATIC FRONTEND CONTENT — NO BACKEND NEEDED:
+The Frontline Insights panel contains a WEF Global Risk Landscape chart
+card (a clickable thumbnail that opens a full-screen SVG lightbox showing
+all 33 risks from the World Economic Forum Global Risks Report 2026,
+Figure 2). This is static SVG built into index.html — no API calls, no
+data fetching, no backend involvement. If future WEF data updates are
+needed, the SVG bar values and labels are edited directly in the HTML.
+The lightbox is a self-contained overlay with its own open/close JS
+functions (openWEFChart / closeWEFChart) and an ESC-to-close keybinding.
+
+The Frontline Insights panel also contains a RAND Report card titled
+"RAND Report: Perceptions of Possible Global Threats and Hazards"
+(placed between the MIT Sloan link and the WEF chart). The card has
+the report title, source citation, brief summary, topic tags, an
+external link to the source URL
+(https://www.rand.org/pubs/research_reports/RRA4329-1.html), and two
+clickable thumbnail charts. Figure 1 shows percentage of U.S. adults
+very or somewhat concerned about six global threats (stacked bars);
+Figure 2 shows percentage who believe each risk is increasing (single
+bars). Both thumbnails open into a shared lightbox overlay
+(openRandFigure / closeRandFigure) with a tab switcher at the bottom
+to toggle between Figure 1 and Figure 2 without closing. Both figures
+are recreated as native SVG using data from the RAND American Life
+Panel survey (May-June 2025, n=8,793) - RAND's PNG charts are NOT
+embedded directly. The data values, labels, and styling are baked
+into _randFigure1HTML() and _randFigure2HTML() and can be edited
+directly. ESC/backdrop/x closes the lightbox.
+
+The Frontline Insights panel header is also clickable and expands an
+inline Interactive Risk Ranker — an 85-topic horizontal bar chart
+rendered as a single SVG that visually mirrors the WEF Global Risks
+Report Figure 2 chart exactly (same coordinate system, same fonts,
+same row spacing, same Figure-style header bar, same x-axis tick marks
+and axis title, same source caption + risk-category legend at the
+bottom). Topics are grouped into 10 collapsible category sections —
+Geopolitics, US Politics, Financial Markets, Technology, Cybersecurity,
+Legal & Regulatory, Safety & Security, Global Health & Medical,
+Society, and Environment. Each section header shows the category name
+with its color accent, an expand/collapse arrow, and a "X / Y scored"
+counter. All sections start collapsed so users opt into what to score;
+"Expand all" and "Collapse all" buttons in the toolbar provide bulk
+control. Switching to "By score" view flattens everything into a
+single ranked list (no grouping, leaderboard mode).
+
+The chart starts empty (no bars drawn) and bars grow as the user
+clicks. Each row's bar lane is divided into 5 invisible SVG click-zone
+rectangles — clicking the 1st zone fills the bar 20% (score 1), the
+5th zone fills it 100% (score 5). Clicking the same zone twice clears
+the score. Bars are colored by the risk's RANE category using the
+canonical CATS palette. The score value (1, 2, 3, 4, or 5) appears as
+a bold text label at the bar's tip, in the same visual style WEF uses
+for percentages.
+
+The chart has an expand button (⤢) that opens the same chart in a
+full-screen lightbox overlay (mirroring the WEF lightbox treatment,
+with ESC/backdrop/✕ to close), a counter showing how many risks have
+been scored and how many are rated 4-5 ("high priority"), a Reset
+button, and an "Export to Survey" button. The inline panel view and
+the lightbox view stay in sync — scoring in one updates both. Scores
+persist via localStorage under the key "wef_risk_ranking_v3" and need
+no backend storage. When the user exports, all risks rated 4 or 5 are
+auto-added to the Enterprise Pulse Survey custom builder as
+pre-checked topics in their respective categories — the survey name
+is preset to "My Top-Ranked Risks" and the user proceeds through the
+normal Pulse Survey generation flow from there.
+
+The 85-topic list and topic-to-category mapping live in the
+RANKER_TOPICS constant, the category render order in RANKER_CAT_ORDER,
+and category colors in the canonical CATS array — all in index.html
+and editable directly. The CATS array now has two new entries beyond
+the 8 that drive the rest of the index: "society" (slate teal,
+#1F6B7A) and "environment" (olive/moss, #5C7A1F). These are used by
+the Risk Ranker only; they do not yet have signals/markets feeding
+them in other parts of the index. The SVG layout constants (ROW_STEP,
+SECTION_GAP, HEADER_H, FIRST_Y, BAR_H, BAR_X0, BAR_W_FULL, BAR_W_PER)
+are defined inline in _renderRankerInto() and can be tuned per-mode
+(inline vs lightbox) without breaking the click logic.
+
+
+IMPORTANT — SECURING THE ANTHROPIC API KEY:
+The current index.html file calls api.anthropic.com directly from the
+browser for feeds 6, 7, 8, and 9. This exposes the Anthropic API key
+client-side. Before going live, all four Anthropic-powered features must
+be refactored so the frontend calls the backend endpoints listed above
+instead of api.anthropic.com directly. The backend holds the Anthropic
+key in the .env file and is the only party that talks to Anthropic.
+
+Find and replace all four direct-fetch blocks in index.html:
+  - _spFetchConsensus               → GET /api/consensus/:id
+  - side-panel briefing generator   → POST /api/signal-briefing
+  - VIX driver generator            → GET /api/vix-driver
+  - Enterprise Pulse Survey (both   → POST /api/pulse/generate-single
+    single-topic and custom flows)    POST /api/pulse/generate-custom
+
+
+DATABASE:
+--------------------------------------------------------------------------------
+Use PostgreSQL via Supabase for storage. Create tables for:
+  markets            — current prices from all platforms
+  market_history     — price logs (every fetch logged to build historical record)
+  news_items         — RSS entries with category tags and sentiment scores
+  gjopen_questions   — forecasts and probability history
+  fred_data          — economic series values including VIX intraday and daily
+  ai_consensus       — pre-computed AI Platforms Consensus for all markets
+  signal_briefings   — cached side-panel briefings (6-hour TTL, probability-
+                       move invalidation)
+  vix_driver         — singleton cache of the latest VIX driver explainer
+  pulse_surveys      — (Phase 2, optional at launch) sent surveys, question
+                       payloads, delivery settings, response aggregates
+
+Log every price fetch to market_history from day one so trend sparkline charts
+self-build over time. After ~2 weeks of logging, full 14-day trend lines will
+be available. After 6 months, full sparkline range is available.
+
+
+API ENDPOINTS:
+--------------------------------------------------------------------------------
+Serve the following endpoints to the HTML file:
+
+  GET /api/markets
+  All current market prices from Polymarket and Kalshi, normalized to this
+  exact format: {id, cat, name, platform, prob, vol, prev}
+  prob must be a number 0-100 representing percentage.
+  cat must use these exact IDs: geo, uspol, fin, tech, cyber, legal, safety,
+  medical.
+
+  GET /api/market/:id/history
+  Price history array for a specific market ID, used to populate sparkline
+  trend charts in the side panel.
+
+  GET /api/nm-signals
+  Non-monied signals including GJOpen forecasts, normalized for the
+  Non-Monied section of the dashboard.
+
+  GET /api/news/breaking
+  Latest breaking news items from the past 2 hours, filtered by active
+  category tab selection.
+
+  GET /api/news/research
+  Research institution and polling RSS entries for the Intelligence Reports
+  and Polling & Research sections.
+
+  GET /api/fred
+  Current values for all FRED series plus VIX intraday status:
+  {vix:{value, source, market_open, updated_at}, sp500, dgs10, fedfunds,
+  cpi, unrate, gdp, recession_prob}
+
+  GET /api/consensus/:id
+  Pre-computed AI Platforms Consensus for a given market or signal ID.
+  Returns: {market_id, claude_pct, deepseek_pct, gemini_pct, gpt4_pct,
+  grok_pct, mistral_pct, perplexity_pct, avg_pct, spread, consensus_note,
+  computed_at}
+  Falls back to live Claude API call if no cached result exists.
+
+  POST /api/signal-briefing
+  Generate or return cached side-panel briefing for a clicked signal.
+  Body: {signal_id, signal_name, category, probability, prev_probability}
+  Returns: {trend_pts, drivers, watch, color}
+  Cached 6 hours, invalidated on >3pp probability moves.
+
+  GET /api/vix-driver
+  Latest cached VIX driver explainer.
+  Returns: {driver, detail, direction, change, vix_value, computed_at}
+  Refreshed every 30 minutes during US market hours, twice daily
+  otherwise.
+
+  POST /api/pulse/generate-single
+  Generate Enterprise Pulse Survey questions for a single signal.
+  Body: {signal_name, category, probability, industry_label}
+  Returns: {questions:[{num, text, type, low?, high?, placeholder?}],
+  industry_context}
+
+  POST /api/pulse/generate-custom
+  Generate Enterprise Pulse Survey questions across multiple topics.
+  Body: {survey_name, topics:[{sig, cat}], sector}
+  Returns: {survey_title, questions:[{num, text, type, low?, high?,
+  placeholder?, topic}], summary}
+
+
+DEPLOYMENT:
+--------------------------------------------------------------------------------
+1. Set up the full project in this folder with this structure:
+     frontend/
+       index.html
+     backend/
+       server.js
+       package.json
+       .env
+       feeds/
+         polymarket.js
+         kalshi.js
+         fred.js
+         vix.js
+         gjopen.js
+         rss.js
+       jobs/
+         scheduler.js
+         dedup.js
+         consensus.js
+         vix-driver.js
+       ai/
+         pulse-survey.js
+         signal-briefing.js
+         anthropic-client.js
+       db/
+         schema.sql
+         queries.js
+     .gitignore
+     README.md
+
+2. Initialize a Git repository in the root folder.
+
+3. Create a .env file for all API keys. Never commit this file to GitHub.
+   Required keys at launch:
+     KALSHI_API_KEY
+     FRED_API_KEY
+     ANTHROPIC_API_KEY
+     SUPABASE_URL
+     SUPABASE_DB_STRING
+     PORT (default 3000)
+   Optional keys for Phase 3 AI upgrades:
+     OPENAI_API_KEY
+     GOOGLE_AI_KEY
+     MISTRAL_API_KEY
+     DEEPSEEK_API_KEY
+     PERPLEXITY_API_KEY
+
+4. Create a .gitignore file that excludes: .env, node_modules, and any
+   other sensitive or unnecessary files.
+
+5. Push everything (except .env) to my GitHub repository called:
+   risk-intelligence-index
+
+6. Create a railway.json configuration file so the backend can be deployed
+   to Railway with one click after connecting the GitHub repository.
+
+7. Create a netlify.toml configuration file so the frontend folder deploys
+   automatically from GitHub to Netlify.
+
+8. Update the PROXY_BASE_URL variable in index.html to be configurable via
+   an environment variable so it automatically points to the correct backend
+   URL in production versus local development.
+
+
+IMPORTANT NOTES:
+--------------------------------------------------------------------------------
+- Read index.html fully before writing any code. The data formats, category
+  IDs, and field names in the backend must match exactly what the HTML
+  already expects.
+
+- The HTML file uses these exact category IDs throughout:
+  geo, uspol, fin, tech, cyber, legal, safety, medical
+  All backend data must use these same IDs without exception.
+
+- Market probability must always be a number 0-100 representing percentage.
+
+- SECURITY — THE ANTHROPIC API KEY MUST NEVER REACH THE BROWSER.
+  The current index.html calls api.anthropic.com directly from four
+  places: AI Platforms Consensus, Side-Panel Signal Briefings, VIX
+  Driver Explainer, and Enterprise Pulse Survey (both single-topic and
+  custom flows). Before deployment, refactor every one of these so the
+  frontend calls your backend endpoints instead. The backend holds the
+  Anthropic key in .env and is the only party that talks to Anthropic.
+
+- When you need API keys from me, ask for them one at a time and wait for
+  my response before continuing.
+
+- After completing each major section, tell me what was built and what the
+  next step is.
+
+- When everything is ready to push to GitHub, tell me first and confirm
+  before pushing.
+
+- Please start by reading index.html, then tell me your plan before writing
+  any code.
+
+
+================================================================================
+FEED REFERENCE LOG (for your records)
+================================================================================
+
+FEED 1 — POLYMARKET
+  Auth:             None required
+  Refresh:          Every 30 seconds (prices), once on load (metadata),
+                    on demand (history)
+  Volume filter:    $10K+ 24h
+  Expected markets: 60-120 active at any time
+  History:          Up to 180 days, daily close prices
+  Special notes:    CORS restricted — must go through backend proxy
+
+FEED 2 — KALSHI
+  Auth:             Free API key required
+  Refresh:          Every 30 seconds (prices), once on load (metadata),
+                    on demand (history)
+  Volume filter:    $10K+ 24h
+  Expected markets: 50-90 active at any time
+  Special notes:    Series structure needs flattening; show both Kalshi and
+                    Polymarket separately when same event appears on both
+                    (Option A); strongest platform for Cybersecurity
+
+FEED 3 — FRED + VIX LIVE
+  Auth:             Free API key required
+  Refresh:          Daily at ~6pm ET (all FRED series);
+                    every 5 minutes during market hours for VIX intraday
+                    (9:30am-4:00pm ET, Mon-Fri via Yahoo Finance ^VIX);
+                    falls back to FRED daily close outside market hours
+  Key series:       VIXCLS, SP500, DGS10, FEDFUNDS, CPIAUCSL, UNRATE,
+                    A191RL1Q225SBEA, RECPROUSM156N
+  VIX sources:      Primary: Yahoo Finance intraday (unofficial, free, stable)
+                    Fallback: FRED VIXCLS daily close (official, free)
+  History:          Full historical data available going back decades
+  Special notes:    VIX response includes source and market_open flag so
+                    dashboard can show "Live" vs "Close" indicator
+
+FEED 4 — GOOD JUDGMENT (GJOPEN)
+  Auth:             None for Phase 1 scraping; paid contract for Phase 2
+  Refresh:          Once daily
+  Expected:         50-150 active questions at any time
+  Special notes:    Phase 1 scraping is fragile; question matching to
+                    categories requires upfront manual curation; cross-
+                    reference layer needed for market vs. superforecaster
+                    comparison; upgrade to GJ Pro when dashboard scales
+
+FEED 5 — RSS NEWS
+  Auth:             None required
+  Sources:          13 breaking news + 4 specialist + 9 research feeds
+  Refresh:          Every 5 min (breaking), 30 min (specialist),
+                    daily (research)
+  Special notes:    Sentiment scoring included; keyword filtering maps to
+                    8 category IDs; powers Breaking News banner,
+                    Intelligence Reports, and Polling & Research sections;
+                    all Polling & Research sources covered via RSS except
+                    RANE (requires direct data agreement)
+
+FEED 6 — AI PLATFORMS CONSENSUS
+  Auth:             Anthropic API key required at launch;
+                    optional individual model keys for Phase 3 upgrades
+  Refresh:          Once daily at 2:00am ET for all active markets
+  Models:           Claude, DeepSeek, Gemini, GPT-4o, Grok, Mistral,
+                    Perplexity (alphabetical order)
+  Storage:          ai_consensus table in Supabase
+  Endpoint:         GET /api/consensus/:id
+  Cost estimate:    $0.50-$1.00/day at launch (Claude simulates all models)
+                    $2.00-$5.00/day at Phase 3 (real APIs per model)
+  Phase 1 (launch): Claude API simulates all seven model estimates
+  Phase 2:          Add DeepSeek + Mistral real APIs (cheapest, easiest)
+  Phase 3:          Add OpenAI (GPT-4o) + Google (Gemini) real APIs
+  Phase 4:          Add Grok via xAI API when broadly available
+  Special notes:    Database schema designed for drop-in model upgrades;
+                    frontend checks cached result first, falls back to
+                    live call if cache miss; batched in groups of 20 to
+                    avoid rate limiting
+
+FEED 7 — ENTERPRISE PULSE SURVEY
+  Auth:             Anthropic API key (backend only — must be proxied)
+  Refresh:          On demand (user-triggered)
+  Endpoints:        POST /api/pulse/generate-single
+                    POST /api/pulse/generate-custom
+  Question format:  2 Likert + 2 Yes/No + 1 Open (single-topic flow);
+                    mixed across 2-10 questions (custom multi-topic flow)
+  Cost estimate:    ~$0.005-$0.010 per generation, negligible daily total
+  Special notes:    Plain-language prompts, no jargon, no "CRO lens" or
+                    "leadership vs frontline" framing; frontend allows
+                    users to edit/delete/add questions after generation;
+                    delivery integrations (Slack/Teams/Google Chat/Email/
+                    MS Forms) are Phase 2 post-launch
+
+FEED 8 — SIDE-PANEL SIGNAL BRIEFINGS
+  Auth:             Anthropic API key (backend only — must be proxied)
+  Refresh:          On demand with 6-hour cache per signal;
+                    cache invalidated on >3pp probability moves
+  Endpoint:         POST /api/signal-briefing
+  Storage:          signal_briefings table
+  Cost estimate:    $0.60-$2.00/day with caching
+  Special notes:    Returns 7-point trend sparkline, 3 driver bullets,
+                    one "what to watch" event pointer, and a signal color
+                    hex value
+
+FEED 9 — VIX DRIVER EXPLAINER
+  Auth:             Anthropic API key (backend only — must be proxied)
+  Refresh:          Every 30 min during US market hours (9:30am-4:00pm ET,
+                    Mon-Fri); twice daily (9am, 5pm ET) otherwise
+  Endpoint:         GET /api/vix-driver
+  Storage:          vix_driver singleton cache row
+  Cost estimate:    Under $0.25/day (~48 generations/day)
+  Special notes:    Served to all users from cache — no per-user API
+                    calls; returns event driver, 2-3 sentence detail,
+                    up/down/flat direction, and approximate change
+
+
+================================================================================
+PHASED BUILD PLAN
+================================================================================
+
+PHASE 1 — Foundation
+  - Set up GitHub repository and folder structure
+  - Build Express server with single working endpoint
+  - Connect Supabase database
+  - Deploy to Railway
+  - Confirm HTML can talk to backend
+  Estimated time: 1-2 Claude Code sessions
+
+PHASE 2 — Prediction Markets + VIX Live
+  - Wire up Polymarket feed
+  - Wire up Kalshi feed
+  - Deduplication logic
+  - 30-second polling confirmed working
+  - VIX intraday feed via Yahoo Finance
+  - FRED daily feed for all economic series
+  - Live/Close indicator on VIX card
+  Estimated time: 1 Claude Code session
+
+PHASE 3 — News & Research Feeds
+  - RSS breaking news feeds (13 sources)
+  - RSS specialist feeds (4 sources)
+  - RSS research/think tank feeds (9 sources)
+  - Keyword filtering and sentiment scoring
+  - Deduplication logic
+  Estimated time: 1 Claude Code session
+
+PHASE 4 — AI Consensus + GJOpen + Side-Panel & VIX Briefings
+  - AI Platforms Consensus daily batch job (Claude simulating all models)
+  - GET /api/consensus/:id endpoint
+  - Update frontend to use cached consensus
+  - POST /api/signal-briefing endpoint (6-hour cached briefings)
+  - GET /api/vix-driver endpoint (30-min cached driver explainer)
+  - Refactor all four direct api.anthropic.com fetches out of index.html
+    so the browser never sees the Anthropic key
+  - GJOpen daily scraper
+  - Cross-reference layer (market vs. superforecaster comparison)
+  Estimated time: 1-2 Claude Code sessions
+
+PHASE 5 — Enterprise Pulse Survey (generation)
+  - POST /api/pulse/generate-single endpoint
+  - POST /api/pulse/generate-custom endpoint
+  - Refactor index.html so both pulse flows call backend, not Anthropic
+    directly
+  - Verify frontend editable-questions UI (edit/delete/add) works against
+    proxied responses
+  Estimated time: 1 Claude Code session
+
+PHASE 6 — Final Polish & Full Deployment
+  - End-to-end testing of all feeds
+  - Error handling and fallback states
+  - Final front-end updates to consume all live endpoints
+  - Full production deployment and monitoring setup
+  Estimated time: 1 Claude Code session
+
+FUTURE — AI Consensus Model Upgrades (post-launch, optional)
+  - Add DeepSeek API (~$0.001/market/day)
+  - Add Mistral API (~$0.002/market/day)
+  - Add OpenAI GPT-4o API (~$0.005/market/day)
+  - Add Google Gemini API (free tier available)
+  - Add Grok via xAI API (when broadly available)
+
+FUTURE — Pulse Survey Delivery (post-launch)
+  - POST /api/pulse/send endpoint
+  - Slack OAuth + webhook delivery
+  - Microsoft Teams OAuth + adaptive card delivery
+  - Google Chat webhook delivery
+  - SMTP email delivery with response aggregation
+  - Microsoft Forms export format
+  - pulse_surveys table for response aggregation and dashboards
+
+
+================================================================================
+ACCOUNTS & KEYS TRACKER (fill in as you create them)
+================================================================================
+
+GitHub username:          ______________________________
+GitHub repo URL:          ______________________________
+Supabase project URL:     ______________________________
+Supabase DB string:       ______________________________
+Railway project URL:      ______________________________
+Netlify site URL:         ______________________________
+Kalshi API key:           ______________________________
+FRED API key:             ______________________________
+Anthropic API key:        ______________________________
+
+--- Optional (Phase 3 AI upgrades) ---
+OpenAI API key:           ______________________________
+Google AI Studio key:     ______________________________
+Mistral API key:          ______________________________
+DeepSeek API key:         ______________________________
+Perplexity API key:       ______________________________
+
+
+================================================================================
+END OF BRIEF
+================================================================================
