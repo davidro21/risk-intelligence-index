@@ -3,10 +3,11 @@
 // triggered false positives like "iran" matching inside "tirante" or "war"
 // matching inside "warning".
 
-// Priority order: more specific cats first. Cyber/medical/safety beat the
-// broader tech/fin/uspol/geo cats so e.g. a "ransomware" market doesn't get
-// classified tech.
-const CAT_PRIORITY = ['cyber', 'medical', 'safety', 'tech', 'legal', 'fin', 'uspol', 'geo'];
+// Priority order: most specific cats first. Cyber/medical/safety beat
+// broader cats. **geo is checked before uspol** so foreign politics (e.g.
+// "Brazilian presidential election", "UK local elections") classify correctly
+// even though they contain generic political words.
+const CAT_PRIORITY = ['cyber', 'medical', 'safety', 'tech', 'legal', 'fin', 'geo', 'uspol'];
 
 const KEYWORDS = {
   cyber:   ['hack','breach','ransomware','cyberattack','cyber attack','malware','vulnerability','data leak','ddos','exploit','zero-day','zero day','phishing','cisa','nsa hack'],
@@ -14,9 +15,34 @@ const KEYWORDS = {
   safety:  ['terrorism','terror attack','mass shooting','explosion','bioterrorism','chemical weapon','radiological','nuclear attack','assassination','hostage','school shooting'],
   tech:    ['openai','anthropic','claude','gpt','chatgpt','sora','gemini','llm','agi','artificial intelligence','ai model','nvidia','semiconductor','semiconductors','gpu','tsmc','asml','tiktok','spacex','tesla','quantum computing'],
   legal:   ['supreme court','scotus','indictment','antitrust','doj','sec ','ftc','lawsuit','verdict','court ruling','federal judge','disbarred','impeach'],
-  fin:     ['fed chair','federal reserve','interest rate','inflation','cpi','gdp','recession','s&p','sp500','nasdaq','dow jones','stocks','bonds','treasury','bitcoin','btc','ethereum','solana','crypto','oil','wti','gold price','silver','copper','commodities','rate cut','rate hike','microstrategy'],
-  uspol:   ['trump','biden','harris','vance','desantis','newsom','whitmer','walz','pelosi','schumer','mcconnell','aoc','congress','senate','speaker','impeachment','election','midterm','presidential nomination','primary','caucus','white house','president','presidential','governor','attorney general','cabinet','filibuster','republican','democrat'],
-  geo:     ['russia','ukraine','putin','zelensky','china','taiwan','north korea','kim jong','iran','iranian','israel','israeli','gaza','hamas','hezbollah','houthi','syria','syrian','yemen','venezuela','cuba','nato','war','ceasefire','sanctions','invasion','missile','treaty','summit','peacekeeping','annexation']
+  fin:     ['fed','fed chair','federal reserve','interest rate','interest rates','inflation','cpi','gdp','recession','s&p','sp500','nasdaq','dow jones','stocks','bonds','treasury','bitcoin','btc','ethereum','solana','crypto','oil','wti','gold price','silver','copper','commodities','rate cut','rate hike','rates cut','microstrategy'],
+  geo: [
+    // Conflict / geopolitics keywords
+    'nato','war','ceasefire','sanctions','invasion','missile','treaty','summit','peacekeeping','annexation',
+    // Foreign leaders / movements
+    'putin','zelensky','xi jinping','kim jong','netanyahu','lula','bolsonaro','sheinbaum','modi','erdogan','starmer','meloni','macron','scholz','merz','milei','orbán','orban','sanchez','trudeau','carney','albanese',
+    // Country names
+    'russia','ukraine','china','taiwan','north korea','south korea','iran','israel','gaza','hamas','hezbollah','houthi','syria','yemen','venezuela','cuba',
+    'brazil','mexico','france','germany','italy','spain','britain','united kingdom','poland','japan','indonesia','vietnam','australia','canada','europe',
+    'argentina','chile','colombia','peru','hungary','romania','austria','belgium','switzerland','sweden','norway','denmark','finland',
+    'ireland','scotland','wales','greece','portugal','turkey','egypt','iraq','afghanistan','pakistan','bangladesh','india',
+    'nigeria','kenya','ethiopia','philippines','malaysia','thailand','saudi arabia','qatar','kuwait','uae','jordan','lebanon','myanmar','sudan',
+    // Nationality / adjective forms
+    'iranian','israeli','syrian','ukrainian','russian','chinese','korean','japanese',
+    'brazilian','mexican','french','german','italian','spanish','british','polish','indonesian','vietnamese','australian','canadian','european',
+    'argentinian','argentine','chilean','colombian','peruvian','hungarian','romanian','austrian','dutch','belgian','swiss','swedish','norwegian','danish','finnish',
+    'irish','scottish','welsh','greek','portuguese','turkish','egyptian','iraqi','afghan','pakistani','bangladeshi','indian',
+    'nigerian','kenyan','ethiopian','filipino','malaysian','thai','saudi','emirati','qatari','kuwaiti'
+  ],
+  // uspol still includes generic political words like "president", "election",
+  // "primary" — but because geo is checked first, foreign-country mentions
+  // (Brazilian, UK, French, Lula, Macron, etc.) win before reaching uspol.
+  uspol: [
+    // US-specific people / institutions (anchor signals)
+    'trump','biden','harris','vance','desantis','newsom','whitmer','walz','pelosi','schumer','mcconnell','aoc','scotus','congress','senate','house of representatives','speaker','impeachment','midterm','midterms','white house','attorney general','filibuster','republican','democrat','democratic','gop',
+    // Generic political words — only fire when geo didn't match first
+    'presidential','president','election','primary','caucus','governor','cabinet','presidential nomination','presidential election','democratic nominee','republican nominee','democratic primary','republican primary'
+  ]
 };
 
 // Sports / entertainment markets aren't risk signals — drop them entirely.
