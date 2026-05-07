@@ -2,6 +2,7 @@
 // and Yahoo VIX intraday polling. Called once from server.js on startup.
 
 const polymarket = require('../feeds/polymarket');
+const kalshi = require('../feeds/kalshi');
 const fred = require('../feeds/fred');
 const vix = require('../feeds/vix');
 const db = require('../db/queries');
@@ -20,16 +21,26 @@ async function refreshMarkets() {
   if (_running.markets) return;
   _running.markets = true;
   try {
-    const fresh = await polymarket.fetchActiveMarkets({ minVol24h: 10000 });
-    if (!fresh || fresh.length === 0) {
-      console.warn('[scheduler] polymarket returned 0 markets — skipping write');
+    const [polyRes, kalshiRes] = await Promise.allSettled([
+      polymarket.fetchActiveMarkets({ minVol24h: 10000 }),
+      kalshi.fetchActiveMarkets({ minVol24h: 10000 })
+    ]);
+
+    const poly = polyRes.status === 'fulfilled' ? polyRes.value : [];
+    const ksh  = kalshiRes.status === 'fulfilled' ? kalshiRes.value : [];
+    if (polyRes.status === 'rejected') console.warn('[scheduler] polymarket failed:', polyRes.reason && polyRes.reason.message);
+    if (kalshiRes.status === 'rejected') console.warn('[scheduler] kalshi failed:', kalshiRes.reason && kalshiRes.reason.message);
+
+    const fresh = [...poly, ...ksh];
+    if (fresh.length === 0) {
+      console.warn('[scheduler] both feeds returned 0 markets — skipping write');
       return;
     }
     await db.upsertMarkets(fresh);
     await db.appendMarketHistory(fresh);
     await db.markStaleMarketsInactive(fresh.map(m => m.id));
     _markets = fresh;
-    console.log('[scheduler] markets refresh: ' + fresh.length + ' markets');
+    console.log('[scheduler] markets refresh: ' + poly.length + ' poly + ' + ksh.length + ' kalshi = ' + fresh.length + ' total');
   } catch (err) {
     console.warn('[scheduler] markets refresh failed:', err.message);
   } finally {
