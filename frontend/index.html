@@ -1660,12 +1660,13 @@ const MARKETS=[
   {id:'m28',cat:'uspol', name:'Republican holds House in 2026 midterms',platform:'kalshi',prob:51,vol:'$3.2M',prev:54},
 ];
 
-const BREAKING=[
-  {time:'8m',  cat:'fin',    hl:'Fed minutes signal extended hold — July cut odds repriced',   move:'-6pp on "Fed cut July"',dir:'dn'},
-  {time:'34m', cat:'geo',    hl:'Oil holds above $112 on Iran strait tensions',                 move:'+9pp on "Iran conflict"',dir:'up'},
-  {time:'1h',  cat:'legal',  hl:'DOJ files supplemental brief in Google antitrust case',        move:'+5pp on "Google breakup"',dir:'up'},
-  {time:'2h',  cat:'medical',hl:'WHO elevated alert on novel H5N2 influenza variant',           move:'+8pp on "WHO emergency"',dir:'up'},
-  {time:'3h',  cat:'tech',   hl:'EU opens formal AI Act investigation into major US provider',  move:'+11pp on "EU AI Act fine"',dir:'up'},
+let BREAKING=[
+  // Representative items — replaced with live RSS data on first /api/news/breaking poll.
+  {time:'8m',  cat:'fin',    hl:'Fed minutes signal extended hold — July cut odds repriced',   source:'Bloomberg', sentiment:'negative', url:'#'},
+  {time:'34m', cat:'geo',    hl:'Oil holds above $112 on Iran strait tensions',                 source:'Reuters',   sentiment:'negative', url:'#'},
+  {time:'1h',  cat:'legal',  hl:'DOJ files supplemental brief in Google antitrust case',        source:'NYT',       sentiment:'neutral',  url:'#'},
+  {time:'2h',  cat:'medical',hl:'WHO elevated alert on novel H5N2 influenza variant',           source:'STAT',      sentiment:'negative', url:'#'},
+  {time:'3h',  cat:'tech',   hl:'EU opens formal AI Act investigation into major US provider',  source:'BBC',       sentiment:'neutral',  url:'#'}
 ];
 const PLATS=[
   {name:'Kalshi',    vol:'$4.2M', mkts:112,color:'#2d5a11'},
@@ -1674,7 +1675,7 @@ const PLATS=[
   {name:'Robinhood', vol:'Live',  mkts:'Equity/options',color:'#27500a'},
   {name:'Interactive Brokers',vol:'Live',mkts:'Pro market data',color:'#534ab7'},
 ];
-const POLL_SRCS=[
+let POLL_SRCS=[
   {id:'gallup',name:'Gallup',abbr:'GAL',bg:'#daedf8',color:'#0c447c',articles:[
     {title:'Top U.S. Foreign Policy Priority: National Security — 80% say preventing nuclear spread is "very important"',date:'Mar 2026',cats:['geo','safety'],tag:'Foreign Policy',tagCls:'tg',url:'https://news.gallup.com/poll/702764/top-foreign-policy-priority-security.aspx'},
     {title:'Americans Predict Challenging 2026 — majorities pessimistic on economy, geopolitics, political cooperation',date:'Jan 2026',cats:['all','uspol','fin','geo'],tag:'Annual Outlook',tagCls:'tu',url:'https://news.gallup.com/poll/700448/americans-predict-challenging-2026-across-dimensions.aspx'},
@@ -2291,7 +2292,13 @@ function buildNmGrid(){
 
 // ── Breaking banner ───────────────────────────────────────────────────────────
 function buildBreaking(){
-  const list=cur==='all'?BREAKING:BREAKING.filter(b=>b.cat===cur);
+  // For 'all' show items from any cat; otherwise filter to items tagged with
+  // the current cat. Live items have multi-cat (b.cats array); legacy hardcoded
+  // items have a single b.cat string — handle both.
+  const inCat=(b)=> cur==='all'
+    ? true
+    : Array.isArray(b.cats) ? b.cats.includes(cur) : b.cat===cur;
+  const list=BREAKING.filter(inCat);
   const wrap=document.getElementById('breaking-banner-wrap');
   const el=document.getElementById('breaking');
   if(!el)return;
@@ -2300,17 +2307,23 @@ function buildBreaking(){
     return;
   }
   if(wrap)wrap.style.display='';
-  el.innerHTML=list.map(b=>{
-    const cat=catObj(b.cat);
-    const mc=b.dir==='up'?'#0a6640':'#991f1f';
+  el.innerHTML=list.slice(0,12).map(b=>{
+    const primaryCat=Array.isArray(b.cats)&&b.cats.length?b.cats[0]:b.cat;
+    const cat=catObj(primaryCat);
+    const sent=b.sentiment||'neutral';
+    const sCol = sent==='positive'?'#0a6640':sent==='negative'?'#991f1f':'#777';
+    const sIco = sent==='positive'?'▲':sent==='negative'?'▼':'→';
+    const head = b.url && b.url!=='#'
+      ? `<a href="${b.url}" target="_blank" rel="noopener" class="bhl" style="color:inherit;text-decoration:none">${b.hl}</a>`
+      : `<div class="bhl">${b.hl}</div>`;
     return`<div class="bcard-h">
       <div class="btop">
         <span class="bbadge">Breaking</span>
         <span class="plbadge" style="background:${cat.bg};color:${cat.text};font-size:8px;padding:1px 5px;border-radius:3px;font-weight:600">${cat.label}</span>
         <span class="btime">${b.time} ago</span>
       </div>
-      <div class="bhl">${b.hl}</div>
-      <div class="bmove" style="color:${mc}">${b.dir==='up'?'▲':'▼'} ${b.move}</div>
+      ${head}
+      <div class="bmove" style="color:${sCol}">${sIco} ${b.source||''}</div>
     </div>`;
   }).join('');
 }
@@ -2383,6 +2396,101 @@ function _vixZone(v){
   if(v<40)  return {label:'⚠ Fear Zone',     bg:'#fde8e8', color:'#791f1f'};
   return         {label:'⚠ Crisis Zone',   bg:'#fce8f0', color:'#4b1528'};
 }
+// ── Live news fetch ───────────────────────────────────────────────────────────
+function _humanTimeAgo(iso){
+  if(!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if(!isFinite(ms)||ms<0) return 'now';
+  const m = Math.floor(ms/60000);
+  if(m < 1)   return 'now';
+  if(m < 60)  return m+'m';
+  const h = Math.floor(m/60);
+  if(h < 24)  return h+'h';
+  const d = Math.floor(h/24);
+  return d+'d';
+}
+
+async function fetchBreakingNews(){
+  if(!PROXY_BASE_URL) return;
+  try{
+    const r = await fetch(`${PROXY_BASE_URL}/news/breaking?limit=80`);
+    const d = await r.json();
+    if(!d || !Array.isArray(d.items) || d.items.length===0) return;
+    BREAKING = d.items.map(i => ({
+      time:      _humanTimeAgo(i.published_at),
+      cats:      i.cats || [],
+      cat:       (i.cats && i.cats[0]) || 'all',
+      hl:        i.title,
+      source:    i.source || '',
+      sentiment: i.sentiment || 'neutral',
+      url:       i.link || '#',
+      published_at: i.published_at
+    }));
+    buildBreaking();
+  }catch(e){ console.warn('Breaking news fetch failed:', e.message); }
+}
+
+// Map backend RSS source names → POLL_SRCS entry id and visual badge.
+// For sources already in POLL_SRCS (Gallup, Pew), live items replace
+// the hardcoded articles. For new sources, we add fresh entries.
+const _RESEARCH_SOURCE_META = {
+  'Gallup News':       { id:'gallup',    abbr:'GAL', bg:'#daedf8', color:'#0c447c', name:'Gallup' },
+  'Pew Research':      { id:'pew',       abbr:'PEW', bg:'#e8e5fc', color:'#3c3489', name:'Pew Research' },
+  'RAND':              { id:'rand',      abbr:'RND', bg:'#fde8dc', color:'#712b13', name:'RAND' },
+  'CFR':               { id:'cfr',       abbr:'CFR', bg:'#daedf8', color:'#0c447c', name:'Council on Foreign Relations' },
+  'Brookings':         { id:'brookings', abbr:'BRK', bg:'#e5f5d8', color:'#27500a', name:'Brookings' },
+  'CSIS':              { id:'csis',      abbr:'CSIS', bg:'#fde8e8', color:'#791f1f', name:'CSIS' },
+  'Atlantic Council':  { id:'atlantic',  abbr:'AC',  bg:'#fde8dc', color:'#712b13', name:'Atlantic Council' },
+  'IMF Blogs':         { id:'imf',       abbr:'IMF', bg:'#daedf8', color:'#0c447c', name:'IMF' },
+  'Belfer Center':     { id:'belfer',    abbr:'BEL', bg:'#e5f5d8', color:'#27500a', name:'Belfer Center (Harvard)' }
+};
+
+async function fetchResearchNews(){
+  if(!PROXY_BASE_URL) return;
+  try{
+    const r = await fetch(`${PROXY_BASE_URL}/news/research?limit=120`);
+    const d = await r.json();
+    if(!d || !Array.isArray(d.items) || d.items.length===0) return;
+
+    // Group items by source
+    const grouped = new Map();
+    for(const it of d.items){
+      const meta = _RESEARCH_SOURCE_META[it.source];
+      if(!meta) continue;
+      if(!grouped.has(meta.id)) grouped.set(meta.id, { meta, articles: [] });
+      const tagCls = (it.cats && it.cats[0]) ? 't'+it.cats[0].slice(0,1) : 'tu';
+      grouped.get(meta.id).articles.push({
+        title: it.title,
+        date:  _humanTimeAgo(it.published_at) || 'recent',
+        cats:  it.cats || [],
+        tag:   meta.name,
+        tagCls: tagCls,
+        url:   it.link || '#'
+      });
+    }
+
+    // For each existing POLL_SRCS entry, if we have live data for it, replace
+    // its articles. For new sources not in POLL_SRCS, append.
+    const seen = new Set();
+    for(const src of POLL_SRCS){
+      if(grouped.has(src.id)){
+        src.articles = grouped.get(src.id).articles.slice(0,8);
+        seen.add(src.id);
+      }
+    }
+    for(const [id, info] of grouped){
+      if(seen.has(id)) continue;
+      POLL_SRCS.push({
+        id, name: info.meta.name, abbr: info.meta.abbr,
+        bg: info.meta.bg, color: info.meta.color,
+        articles: info.articles.slice(0,8)
+      });
+    }
+
+    buildPollList();
+  }catch(e){ console.warn('Research news fetch failed:', e.message); }
+}
+
 async function fetchFredData(){
   if(!PROXY_BASE_URL)return;
   try{
@@ -3754,7 +3862,13 @@ function renderPulseOrgView() {
 
 buildCats();buildAll();buildPlats();buildTicker();
 document.getElementById('lupd').textContent=PROXY_BASE_URL?'Connecting...':'Representative data — connect proxy for live feed';
-if(PROXY_BASE_URL){fetchLiveData();fetchFredData();setInterval(fetchLiveData,30000);setInterval(fetchFredData,30000);}
+if(PROXY_BASE_URL){
+  fetchLiveData();fetchFredData();fetchBreakingNews();fetchResearchNews();
+  setInterval(fetchLiveData,30000);
+  setInterval(fetchFredData,30000);
+  setInterval(fetchBreakingNews,5*60*1000);     // breaking refreshes server-side every 5m
+  setInterval(fetchResearchNews,30*60*1000);    // research is daily server-side; 30m client poll is plenty
+}
 else setInterval(simUpdate,30000);
 </script>
 </body>
