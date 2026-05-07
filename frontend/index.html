@@ -37,7 +37,13 @@ a{color:inherit;text-decoration:none}
 
 /* Ticker */
 .tick-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);padding:7px 12px;overflow:hidden;white-space:nowrap;margin-bottom:10px}
-.tick-inner{display:inline-block;animation:scroll 90s linear infinite}
+.tick-inner{display:inline-block;animation:scroll 240s linear infinite}
+.mcard-more{display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;color:#185FA5;cursor:pointer;padding:8px 10px;border-top:1px dashed var(--border);user-select:none;transition:background .15s}
+.mcard-more:hover{background:var(--bg2);color:#0c447c}
+.vix-live-pill{display:inline-block;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.05em;text-transform:uppercase;margin-left:8px;vertical-align:middle}
+.vix-live-on{background:#d1f5e8;color:#0a6640}
+.vix-live-off{background:var(--bg2);color:var(--text3)}
+.vix-live-on::before{content:"●";margin-right:3px;animation:blink 1.8s ease-in-out infinite}
 @keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 .tick{display:inline-block;margin-right:36px;font-size:11px}
 .tick-lbl{color:var(--text2)}
@@ -929,7 +935,7 @@ a{color:inherit;text-decoration:none}
       <div class="phdr"><div class="phdr-top"><div class="picon" style="background:#fde8e8;color:#791f1f">VX</div><span class="ptitle">VIX — CBOE Volatility Index</span></div><div class="psub">Fear gauge · S&amp;P 500 implied volatility · 30-day outlook</div></div>
       <div style="padding:10px 14px">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap">
-          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Current VIX</div><div style="font-size:30px;font-weight:700;color:#ba7517" id="vix-big">25.78</div></div>
+          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Current VIX <span id="vix-live" class="vix-live-pill vix-live-off">—</span></div><div style="font-size:30px;font-weight:700;color:#ba7517" id="vix-big">…</div></div>
           <div id="vix-zone-badge" style="font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;background:#fff0dc;color:#633806">⚠ Caution Zone</div>
           <div style="flex:1;min-width:160px">
             <div style="font-size:9px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Sentiment scale</div>
@@ -1741,6 +1747,13 @@ let cur='all';
 let mkts=MARKETS.map(m=>({...m}));
 let openRpt=new Set();
 let openPoll=new Set();
+const _expandedCats=new Set();
+function toggleCatExpand(cid){
+  if(_expandedCats.has(cid))_expandedCats.delete(cid);
+  else _expandedCats.add(cid);
+  buildMktGrid();
+}
+window.toggleCatExpand=toggleCatExpand;
 const PROXY_BASE_URL=(typeof window!=='undefined'&&window.__CONFIG__&&window.__CONFIG__.PROXY_BASE_URL)||null;
 
 function catObj(id){return CATS.find(c=>c.id===id)||CATS[0];}
@@ -2178,10 +2191,13 @@ function buildMktGrid(){
   const g=document.getElementById('mkt-grid');
   if(!cats.length){g.innerHTML='<div style="font-size:11px;color:var(--text3);grid-column:1/-1;padding:.5rem 0">No markets for this filter.</div>';return;}
   g.innerHTML=cats.map(cid=>{
-    const cat=catObj(cid);const rows=(byCat[cid]||[]).slice(0,5);
+    const cat=catObj(cid);
+    const allRows=(byCat[cid]||[]);
+    const isExpanded=_expandedCats.has(cid);
+    const rows=isExpanded?allRows:allRows.slice(0,5);
     return '<div class="mcard">'
       +'<div class="mcard-hdr"><div class="cicon" style="background:'+cat.bg+';color:'+cat.text+'">'+CMAP[cid]+'</div>'
-      +'<span class="cname">'+cat.label+'</span><span class="ccount">'+((byCat[cid]||[]).length)+'</span></div>'
+      +'<span class="cname">'+cat.label+'</span><span class="ccount">'+allRows.length+'</span></div>'
       +rows.map(m=>{
         const c=pcolor(m.prob);
         // simulate AIC value: blend prob with small random offset, clamped 1-99
@@ -2210,6 +2226,13 @@ function buildMktGrid(){
           +'</div>'
         +'</div>';
       }).join('')
+      +(allRows.length>5
+         ? '<div class="mcard-more" onclick="toggleCatExpand(\''+cid+'\')">'
+            +(isExpanded
+               ? '▲ Show fewer'
+               : '▼ Show all '+allRows.length+' markets')
+           +'</div>'
+         : '')
     +'</div>';
   }).join('');
 }
@@ -2343,6 +2366,62 @@ async function fetchLiveData(){
       buildAll();buildTicker();
     }
   }catch(e){console.warn('Proxy fetch failed:',e.message);}
+}
+
+// ── Live FRED + VIX fetch ─────────────────────────────────────────────────────
+function _vixToScalePosition(v){
+  // Sentiment scale gradient: 0-25% Calm (<20), 25-50% Caution (20-30),
+  // 50-75% Fear (30-40), 75-100% Crisis (>40).
+  if(v<=20) return v*1.25;
+  if(v<=30) return 25+(v-20)*2.5;
+  if(v<=40) return 50+(v-30)*2.5;
+  return Math.min(100, 75+(v-40)*0.5);
+}
+function _vixZone(v){
+  if(v<20)  return {label:'✅ Calm Zone',     bg:'#e5f5d8', color:'#27500a'};
+  if(v<30)  return {label:'⚠ Caution Zone',  bg:'#fff0dc', color:'#633806'};
+  if(v<40)  return {label:'⚠ Fear Zone',     bg:'#fde8e8', color:'#791f1f'};
+  return         {label:'⚠ Crisis Zone',   bg:'#fce8f0', color:'#4b1528'};
+}
+async function fetchFredData(){
+  if(!PROXY_BASE_URL)return;
+  try{
+    const r=await fetch(`${PROXY_BASE_URL}/fred`);
+    const d=await r.json();
+    const vix=d&&d.vix;
+    if(!vix||vix.value==null)return;
+    const v=parseFloat(vix.value);
+    if(!isFinite(v))return;
+
+    // Big number — show 2 decimals during market hours, integer for daily close.
+    const big=document.getElementById('vix-big');
+    if(big) big.textContent = (vix.source==='intraday'?v.toFixed(2):v.toFixed(2));
+
+    // Live / Close pill.
+    const pill=document.getElementById('vix-live');
+    if(pill){
+      if(vix.source==='intraday'&&vix.market_open){
+        pill.textContent='Live';
+        pill.className='vix-live-pill vix-live-on';
+      } else {
+        pill.textContent='Close';
+        pill.className='vix-live-pill vix-live-off';
+      }
+    }
+
+    // Zone badge.
+    const badge=document.getElementById('vix-zone-badge');
+    if(badge){
+      const z=_vixZone(v);
+      badge.textContent=z.label;
+      badge.style.background=z.bg;
+      badge.style.color=z.color;
+    }
+
+    // Marker on the sentiment scale.
+    const marker=document.getElementById('vix-marker');
+    if(marker) marker.style.left=_vixToScalePosition(v).toFixed(1)+'%';
+  }catch(e){console.warn('FRED fetch failed:',e.message);}
 }
 
 // ── Simulate ──────────────────────────────────────────────────────────────────
@@ -3675,7 +3754,7 @@ function renderPulseOrgView() {
 
 buildCats();buildAll();buildPlats();buildTicker();
 document.getElementById('lupd').textContent=PROXY_BASE_URL?'Connecting...':'Representative data — connect proxy for live feed';
-if(PROXY_BASE_URL){fetchLiveData();setInterval(fetchLiveData,30000);}
+if(PROXY_BASE_URL){fetchLiveData();fetchFredData();setInterval(fetchLiveData,30000);setInterval(fetchFredData,30000);}
 else setInterval(simUpdate,30000);
 </script>
 </body>
