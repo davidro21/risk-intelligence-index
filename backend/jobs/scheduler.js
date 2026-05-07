@@ -1,5 +1,96 @@
-// Phase 2+ — central job scheduler (cron-style).
-// Coordinates: market polling (30s), VIX intraday (5min), FRED daily (6pm ET),
-// RSS (per-feed cadence), AI consensus (2am ET daily), VIX driver (30min in
-// market hours), GJOpen (daily).
-module.exports = {};
+// Background scheduler — kicks off Polymarket polling, FRED daily refresh,
+// and Yahoo VIX intraday polling. Called once from server.js on startup.
+
+const polymarket = require('../feeds/polymarket');
+const fred = require('../feeds/fred');
+const vix = require('../feeds/vix');
+const db = require('../db/queries');
+
+const MARKETS_INTERVAL_MS = 30 * 1000;        // 30s
+const VIX_INTRADAY_INTERVAL_MS = 5 * 60 * 1000; // 5min
+const FRED_INTERVAL_MS = 6 * 60 * 60 * 1000;    // 6h (lightweight; FRED publishes
+                                                // most series at most daily, but
+                                                // a 6h cadence covers release-day
+                                                // updates with low API cost)
+
+let _markets = [];   // in-memory mirror of latest fetch
+let _running = { markets: false, vix: false, fred: false };
+
+async function refreshMarkets() {
+  if (_running.markets) return;
+  _running.markets = true;
+  try {
+    const fresh = await polymarket.fetchActiveMarkets({ minVol24h: 10000 });
+    if (!fresh || fresh.length === 0) {
+      console.warn('[scheduler] polymarket returned 0 markets — skipping write');
+      return;
+    }
+    await db.upsertMarkets(fresh);
+    await db.appendMarketHistory(fresh);
+    await db.markStaleMarketsInactive(fresh.map(m => m.id));
+    _markets = fresh;
+    console.log('[scheduler] markets refresh: ' + fresh.length + ' markets');
+  } catch (err) {
+    console.warn('[scheduler] markets refresh failed:', err.message);
+  } finally {
+    _running.markets = false;
+  }
+}
+
+async function refreshVixIntraday() {
+  if (_running.vix) return;
+  _running.vix = true;
+  try {
+    if (!vix.isUSMarketOpen()) return;
+    const obs = await vix.fetchYahooVixIntraday();
+    if (!obs) return;
+    await db.upsertFredObservation({
+      series: 'VIX_INTRADAY',
+      date: obs.ts,
+      value: obs.value,
+      source: 'yahoo'
+    });
+    console.log('[scheduler] VIX intraday: ' + obs.value);
+  } catch (err) {
+    console.warn('[scheduler] VIX refresh failed:', err.message);
+  } finally {
+    _running.vix = false;
+  }
+}
+
+async function refreshFredDaily() {
+  if (_running.fred) return;
+  _running.fred = true;
+  try {
+    for (const seriesId of Object.keys(fred.SERIES)) {
+      try {
+        const obs = await fred.fetchLatestObservation(seriesId);
+        if (!obs) continue;
+        await db.upsertFredObservation({
+          series: seriesId,
+          date: obs.date,
+          value: obs.value,
+          source: 'fred'
+        });
+      } catch (err) {
+        console.warn('[scheduler] FRED ' + seriesId + ' failed:', err.message);
+      }
+    }
+    console.log('[scheduler] FRED refresh complete');
+  } finally {
+    _running.fred = false;
+  }
+}
+
+function start() {
+  // Run all three immediately on boot, then on intervals.
+  refreshMarkets();
+  refreshFredDaily();
+  refreshVixIntraday();
+
+  setInterval(refreshMarkets, MARKETS_INTERVAL_MS);
+  setInterval(refreshVixIntraday, VIX_INTRADAY_INTERVAL_MS);
+  setInterval(refreshFredDaily, FRED_INTERVAL_MS);
+}
+
+module.exports = { start, refreshMarkets, refreshVixIntraday, refreshFredDaily };
