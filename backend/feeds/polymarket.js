@@ -12,38 +12,54 @@ const CAT_PRIORITY = ['cyber', 'medical', 'safety', 'tech', 'legal', 'fin', 'usp
 
 const KEYWORDS = {
   cyber:   ['hack','breach','ransomware','cyberattack','cyber attack','malware','vulnerability','data leak','ddos','exploit','zero-day','zero day','phishing','cisa','nsa hack'],
-  medical: ['pandemic','virus','outbreak','epidemic','vaccine','disease','cdc ','world health organization','fda approval','fda recall','fda warning','variant','covid','h5n1','bird flu','avian flu','measles','ebola','mpox','public health','opioid','fentanyl','biosecurity','novel pathogen'],
+  medical: ['pandemic','virus','outbreak','epidemic','vaccine','disease','cdc','world health organization','fda approval','fda recall','fda warning','variant','covid','h5n1','bird flu','avian flu','measles','ebola','mpox','public health','opioid','fentanyl','biosecurity','novel pathogen'],
   safety:  ['terrorism','terror attack','mass shooting','explosion','bioterrorism','chemical weapon','radiological','nuclear attack','assassination','hostage','school shooting'],
-  tech:    ['openai','anthropic','claude','gpt-','chatgpt','sora','gemini','llm','agi','artificial intelligence',' ai ','nvidia','semiconductor','chip ','gpu','tsmc','asml','tiktok','meta ','google ','apple ','microsoft','spacex','tesla','quantum'],
-  legal:   ['supreme court','scotus','indictment','antitrust','doj ','sec ','ftc ','lawsuit','verdict','court ruling','judge','disbarred','impeach'],
-  fin:     ['fed ','federal reserve','interest rate','inflation','cpi ','gdp ','recession','s&p','sp500','nasdaq','dow ','stocks','bonds','treasury','bitcoin','btc','ethereum','eth ','solana','crypto','oil ','wti','gold ','silver','copper','commodities','rate cut','rate hike'],
-  uspol:   ['trump','biden','harris','vance','desantis','newsom','whitmer','walz','pelosi','schumer','mcconnell','johnson','aoc','congress','senate','house ','speaker','impeachment','election','midterm','primary','caucus','white house','president','presidential','governor','attorney general','cabinet','filibuster'],
-  geo:     ['russia','ukraine','putin','zelensky','china','xi ','taiwan','north korea','kim jong','iran','israel','gaza','hamas','hezbollah','houthi','syria','yemen','venezuela','cuba','nato','war','ceasefire','sanctions','invasion','missile','treaty','summit','un security','peacekeeping','annexation']
+  tech:    ['openai','anthropic','claude','gpt','chatgpt','sora','gemini','llm','agi','artificial intelligence','ai model','nvidia','semiconductor','semiconductors','gpu','tsmc','asml','tiktok','spacex','tesla','quantum computing'],
+  legal:   ['supreme court','scotus','indictment','antitrust','doj','sec ','ftc','lawsuit','verdict','court ruling','federal judge','disbarred','impeach'],
+  fin:     ['fed chair','federal reserve','interest rate','inflation','cpi','gdp','recession','s&p','sp500','nasdaq','dow jones','stocks','bonds','treasury','bitcoin','btc','ethereum','solana','crypto','oil','wti','gold price','silver','copper','commodities','rate cut','rate hike','microstrategy'],
+  uspol:   ['trump','biden','harris','vance','desantis','newsom','whitmer','walz','pelosi','schumer','mcconnell','aoc','congress','senate','speaker','impeachment','election','midterm','presidential nomination','primary','caucus','white house','president','presidential','governor','attorney general','cabinet','filibuster','republican','democrat'],
+  geo:     ['russia','ukraine','putin','zelensky','china','taiwan','north korea','kim jong','iran','iranian','israel','israeli','gaza','hamas','hezbollah','houthi','syria','syrian','yemen','venezuela','cuba','nato','war','ceasefire','sanctions','invasion','missile','treaty','summit','peacekeeping','annexation']
 };
+
+// Pre-compile word-boundary regexes. Naive substring matching previously
+// triggered false positives like "iran" matching inside "tirante" (a tennis
+// player name) or "war" matching inside "warning". Word boundaries (\b)
+// require the keyword to start and end at a word/non-word transition.
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+const KEYWORD_REGEX = {};
+for (const cat of CAT_PRIORITY) {
+  KEYWORD_REGEX[cat] = (KEYWORDS[cat] || []).map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+}
 
 // Sports / entertainment markets aren't risk signals — drop them entirely.
 const REJECT_KEYWORDS = [
   'fifa','world cup','champions league','premier league','la liga','bundesliga','serie a',
-  'nba ','nfl ','mlb ','nhl ','ncaa','super bowl','stanley cup','world series',
+  'nba','nfl','mlb','nhl','ncaa','super bowl','stanley cup','world series','playoff','playoffs',
   'wimbledon','us open tennis','french open','australian open','roland-garros',
-  'formula 1','formula one','f1 ','grand prix','nascar','ipl ','indian premier league',
-  'uefa','copa america','euros 2','olympic','olympics',
+  'atp','wta','tennis match','tennis open',
+  'internazionali','madrid open','monte carlo masters','indian wells','miami open',
+  'cincinnati masters','rolex paris','shanghai masters',
+  'formula 1','formula one','grand prix','nascar','ipl','indian premier league',
+  'uefa','copa america','olympic','olympics',
   'oscars','grammy','emmy','tony awards','golden globe',
   'eurovision','met gala',
-  'taylor swift','kim kardashian','elon musk tweet','will tom cruise','will drake',
-  'mr beast','mrbeast'
+  'taylor swift','kim kardashian','elon musk tweet','tom cruise','drake',
+  'mr beast','mrbeast','league of legends','lol ','esports','dota'
 ];
+const REJECT_REGEX = REJECT_KEYWORDS.map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
 
 function isRejected(text) {
-  const t = (' ' + text.toLowerCase() + ' ');
-  return REJECT_KEYWORDS.some(kw => t.includes(kw));
+  const t = text.toLowerCase();
+  return REJECT_REGEX.some(re => re.test(t));
 }
 
 function classify(text) {
-  const t = (' ' + text.toLowerCase() + ' ');
+  const t = text.toLowerCase();
   for (const cat of CAT_PRIORITY) {
-    for (const kw of KEYWORDS[cat]) {
-      if (t.includes(kw)) return cat;
+    for (const re of KEYWORD_REGEX[cat]) {
+      if (re.test(t)) return cat;
     }
   }
   return null;
