@@ -187,6 +187,73 @@ async function upsertNewsItems(items) {
   return { inserted };
 }
 
+// ── gjopen_questions ───────────────────────────────────────────────────────
+
+async function upsertGJOpenQuestions(rows) {
+  if (!rows || rows.length === 0) return { inserted: 0 };
+  const p = getPool();
+  const client = await p.connect();
+  let inserted = 0;
+  try {
+    await client.query('BEGIN');
+    for (const r of rows) {
+      const result = await client.query(
+        `INSERT INTO gjopen_questions (id, cat, title, current_prob, forecasters, closes_at, prob_history, scraped_at)
+         VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           cat = EXCLUDED.cat,
+           title = EXCLUDED.title,
+           current_prob = COALESCE(EXCLUDED.current_prob, gjopen_questions.current_prob),
+           forecasters = EXCLUDED.forecasters,
+           closes_at = EXCLUDED.closes_at,
+           prob_history = COALESCE(EXCLUDED.prob_history, gjopen_questions.prob_history),
+           scraped_at = NOW()
+         RETURNING (xmax = 0) AS new_row`,
+        [r.id, r.cat, r.title, r.current_prob, r.forecasters, r.closes_at, r.prob_history ? JSON.stringify(r.prob_history) : null]
+      );
+      if (result.rows[0] && result.rows[0].new_row) inserted++;
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return { inserted };
+}
+
+async function getActiveGJOpenQuestions({ cat = null } = {}) {
+  const params = [];
+  const where = [];
+  // Only return questions still open (closes_at in the future, or null).
+  where.push(`(closes_at IS NULL OR closes_at > NOW())`);
+  // And scraped within the last 2 days (otherwise stale).
+  where.push(`scraped_at > NOW() - INTERVAL '2 days'`);
+  if (cat) {
+    params.push(cat);
+    where.push(`cat = $${params.length}`);
+  }
+  const sql = `SELECT id, cat, title, current_prob, forecasters, closes_at
+                 FROM gjopen_questions
+                WHERE ${where.join(' AND ')}
+                ORDER BY forecasters DESC NULLS LAST, scraped_at DESC
+                LIMIT 200`;
+  const r = await query(sql, params);
+  return r.rows.map(row => ({
+    id: row.id,
+    cat: row.cat,
+    name: row.title,
+    src: 'GJ Open',
+    srcC: 'tg',
+    pct: row.current_prob == null ? null : parseFloat(row.current_prob),
+    lbl: row.forecasters != null ? row.forecasters + ' forecasters' : 'Forecasters',
+    detail: 'Active superforecaster question on Good Judgment Open. Closes ' +
+            (row.closes_at ? row.closes_at.toISOString().slice(0,10) : 'TBD') + '.',
+    url: 'https://www.gjopen.com/questions/' + row.id.replace(/^gj-/, '')
+  }));
+}
+
 // Read recent news, returning at most one row per dedup_key (highest-priority
 // source wins when multiple wires carry the same story).
 async function getRecentNews({ sources, hoursBack = 2, limit = 80, cat = null } = {}) {
@@ -225,5 +292,7 @@ module.exports = {
   upsertFredObservation,
   getLatestFredBySeries,
   upsertNewsItems,
-  getRecentNews
+  getRecentNews,
+  upsertGJOpenQuestions,
+  getActiveGJOpenQuestions
 };

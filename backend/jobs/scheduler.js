@@ -6,6 +6,7 @@ const kalshi = require('../feeds/kalshi');
 const fred = require('../feeds/fred');
 const vix = require('../feeds/vix');
 const rss = require('../feeds/rss');
+const gjopen = require('../feeds/gjopen');
 const db = require('../db/queries');
 
 const MARKETS_INTERVAL_MS = 30 * 1000;        // 30s
@@ -17,9 +18,10 @@ const FRED_INTERVAL_MS = 6 * 60 * 60 * 1000;    // 6h (lightweight; FRED publish
 const NEWS_BREAKING_INTERVAL_MS   = 5 * 60 * 1000;       // 5min
 const NEWS_SPECIALIST_INTERVAL_MS = 30 * 60 * 1000;      // 30min
 const NEWS_RESEARCH_INTERVAL_MS   = 24 * 60 * 60 * 1000; // 24h
+const GJOPEN_INTERVAL_MS          = 24 * 60 * 60 * 1000; // 24h
 
 let _markets = [];   // in-memory mirror of latest fetch
-let _running = { markets: false, vix: false, fred: false, breaking: false, specialist: false, research: false };
+let _running = { markets: false, vix: false, fred: false, breaking: false, specialist: false, research: false, gjopen: false };
 
 async function refreshMarkets() {
   if (_running.markets) return;
@@ -121,6 +123,24 @@ const refreshBreakingNews   = () => refreshNewsBatch('breaking',   rss.fetchBrea
 const refreshSpecialistNews = () => refreshNewsBatch('specialist', rss.fetchSpecialist);
 const refreshResearchNews   = () => refreshNewsBatch('research',   rss.fetchResearch);
 
+async function refreshGJOpen() {
+  if (_running.gjopen) return;
+  _running.gjopen = true;
+  try {
+    const rows = await gjopen.fetchActiveQuestions({ maxPages: 5 });
+    if (rows.length === 0) {
+      console.warn('[scheduler] gjopen: 0 questions classified — skipping write');
+      return;
+    }
+    const { inserted } = await db.upsertGJOpenQuestions(rows);
+    console.log('[scheduler] gjopen: ' + rows.length + ' classified, ' + inserted + ' new');
+  } catch (err) {
+    console.warn('[scheduler] gjopen failed:', err.message);
+  } finally {
+    _running.gjopen = false;
+  }
+}
+
 function start() {
   // Run everything once on boot, then on per-feed intervals.
   refreshMarkets();
@@ -129,6 +149,7 @@ function start() {
   refreshBreakingNews();
   refreshSpecialistNews();
   refreshResearchNews();
+  refreshGJOpen();
 
   setInterval(refreshMarkets, MARKETS_INTERVAL_MS);
   setInterval(refreshVixIntraday, VIX_INTRADAY_INTERVAL_MS);
@@ -136,10 +157,12 @@ function start() {
   setInterval(refreshBreakingNews, NEWS_BREAKING_INTERVAL_MS);
   setInterval(refreshSpecialistNews, NEWS_SPECIALIST_INTERVAL_MS);
   setInterval(refreshResearchNews, NEWS_RESEARCH_INTERVAL_MS);
+  setInterval(refreshGJOpen, GJOPEN_INTERVAL_MS);
 }
 
 module.exports = {
   start,
   refreshMarkets, refreshVixIntraday, refreshFredDaily,
-  refreshBreakingNews, refreshSpecialistNews, refreshResearchNews
+  refreshBreakingNews, refreshSpecialistNews, refreshResearchNews,
+  refreshGJOpen
 };

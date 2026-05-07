@@ -170,12 +170,25 @@ app.get('/api/news/research', async (req, res) => {
   }
 });
 
+// ── /api/nm-signals ───────────────────────────────────────────────────────────
+// Non-monied signals. Phase 4 ships GJOpen forecasts here. Curated poll/survey
+// data still lives in the frontend's NM_SIGNALS constant — this endpoint
+// augments it with live superforecaster questions.
+app.get('/api/nm-signals', async (req, res) => {
+  try {
+    const cat = req.query.cat || null;
+    const items = await db.getActiveGJOpenQuestions({ cat });
+    res.json({ items, count: items.length });
+  } catch (err) {
+    console.error('[/api/nm-signals]', err.message);
+    res.status(500).json({ error: 'failed_to_fetch_nm_signals' });
+  }
+});
+
 // ── Endpoints reserved for later phases ───────────────────────────────────────
 const NOT_BUILT_YET = (phase) => (_req, res) => {
   res.status(501).json({ error: 'Not implemented yet', phase });
 };
-
-app.get('/api/nm-signals',         NOT_BUILT_YET(4));
 app.get('/api/consensus/:id',      NOT_BUILT_YET(4));
 app.post('/api/signal-briefing',   NOT_BUILT_YET(4));
 app.get('/api/vix-driver',         NOT_BUILT_YET(4));

@@ -1565,7 +1565,7 @@ const REPORTS=[
 ];
 
 // ── Non-Monied signals ────────────────────────────────────────────────────────
-const NM_SIGNALS=[
+let NM_SIGNALS=[
   // GEOPOLITICS
   {cat:'geo',name:'Public supports Ukraine over Russia — US opinion',src:'Gallup',srcC:'tg',pct:62,lbl:'% support Ukraine',detail:'62% of Americans side with Ukraine; partisan gap widened significantly in 2025',url:'https://news.gallup.com/topic/politics.aspx'},
   {cat:'geo',name:'Iran war viewed as making US less safe in long run',src:'Reuters/Ipsos',srcC:'tg',pct:46,lbl:'% say less safe',detail:'46% believe Operation Epic Fury makes the US less safe long-term vs 29% who think the opposite',url:'https://www.ipsos.com/en/know-new-america-beyond-march-2026'},
@@ -2408,6 +2408,22 @@ function _humanTimeAgo(iso){
   if(h < 24)  return h+'h';
   const d = Math.floor(h/24);
   return d+'d';
+}
+
+// Snapshot the curated non-monied signals so we can re-merge with live
+// GJOpen items on each refresh without losing the hardcoded poll data.
+let _CURATED_NM_SIGNALS = null;
+
+async function fetchNmSignals(){
+  if(!PROXY_BASE_URL) return;
+  if(_CURATED_NM_SIGNALS == null) _CURATED_NM_SIGNALS = NM_SIGNALS.slice();
+  try{
+    const r = await fetch(`${PROXY_BASE_URL}/nm-signals`);
+    const d = await r.json();
+    const live = (d && Array.isArray(d.items)) ? d.items : [];
+    NM_SIGNALS = _CURATED_NM_SIGNALS.concat(live);
+    if (typeof buildNmGrid === 'function') buildNmGrid();
+  }catch(e){ console.warn('NM signals fetch failed:', e.message); }
 }
 
 async function fetchBreakingNews(){
@@ -3863,11 +3879,12 @@ function renderPulseOrgView() {
 buildCats();buildAll();buildPlats();buildTicker();
 document.getElementById('lupd').textContent=PROXY_BASE_URL?'Connecting...':'Representative data — connect proxy for live feed';
 if(PROXY_BASE_URL){
-  fetchLiveData();fetchFredData();fetchBreakingNews();fetchResearchNews();
+  fetchLiveData();fetchFredData();fetchBreakingNews();fetchResearchNews();fetchNmSignals();
   setInterval(fetchLiveData,30000);
   setInterval(fetchFredData,30000);
   setInterval(fetchBreakingNews,5*60*1000);     // breaking refreshes server-side every 5m
   setInterval(fetchResearchNews,30*60*1000);    // research is daily server-side; 30m client poll is plenty
+  setInterval(fetchNmSignals,60*60*1000);       // GJOpen refreshes server-side daily; hourly client poll
 }
 else setInterval(simUpdate,30000);
 </script>
