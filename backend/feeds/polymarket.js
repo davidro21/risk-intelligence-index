@@ -21,6 +21,24 @@ const KEYWORDS = {
   geo:     ['russia','ukraine','putin','zelensky','china','xi ','taiwan','north korea','kim jong','iran','israel','gaza','hamas','hezbollah','houthi','syria','yemen','venezuela','cuba','nato','war','ceasefire','sanctions','invasion','missile','treaty','summit','un security','peacekeeping','annexation']
 };
 
+// Sports / entertainment markets aren't risk signals — drop them entirely.
+const REJECT_KEYWORDS = [
+  'fifa','world cup','champions league','premier league','la liga','bundesliga','serie a',
+  'nba ','nfl ','mlb ','nhl ','ncaa','super bowl','stanley cup','world series',
+  'wimbledon','us open tennis','french open','australian open','roland-garros',
+  'formula 1','formula one','f1 ','grand prix','nascar','ipl ','indian premier league',
+  'uefa','copa america','euros 2','olympic','olympics',
+  'oscars','grammy','emmy','tony awards','golden globe',
+  'eurovision','met gala',
+  'taylor swift','kim kardashian','elon musk tweet','will tom cruise','will drake',
+  'mr beast','mrbeast'
+];
+
+function isRejected(text) {
+  const t = (' ' + text.toLowerCase() + ' ');
+  return REJECT_KEYWORDS.some(kw => t.includes(kw));
+}
+
 function classify(text) {
   const t = (' ' + text.toLowerCase() + ' ');
   for (const cat of CAT_PRIORITY) {
@@ -60,8 +78,12 @@ function normalize(rawMarket) {
   if (!isFinite(probRaw)) return null;
   const prob = Math.round(probRaw * 1000) / 10; // 0-100 with 1 decimal
 
-  const text = [rawMarket.question, rawMarket.slug, rawMarket.description].filter(Boolean).join(' ');
-  const cat = classify(text);
+  // Classify on question + slug only — description text is too noisy and
+  // routinely mentions "U.S.", "President", or country names in unrelated
+  // resolution-source boilerplate.
+  const sigText = [rawMarket.question, rawMarket.slug].filter(Boolean).join(' ');
+  if (isRejected(sigText)) return null;
+  const cat = classify(sigText);
   if (!cat) return null; // Skip uncategorizable markets
 
   return {
