@@ -5,6 +5,7 @@ const polymarket = require('../feeds/polymarket');
 const kalshi = require('../feeds/kalshi');
 const fred = require('../feeds/fred');
 const vix = require('../feeds/vix');
+const rss = require('../feeds/rss');
 const db = require('../db/queries');
 
 const MARKETS_INTERVAL_MS = 30 * 1000;        // 30s
@@ -13,9 +14,12 @@ const FRED_INTERVAL_MS = 6 * 60 * 60 * 1000;    // 6h (lightweight; FRED publish
                                                 // most series at most daily, but
                                                 // a 6h cadence covers release-day
                                                 // updates with low API cost)
+const NEWS_BREAKING_INTERVAL_MS   = 5 * 60 * 1000;       // 5min
+const NEWS_SPECIALIST_INTERVAL_MS = 30 * 60 * 1000;      // 30min
+const NEWS_RESEARCH_INTERVAL_MS   = 24 * 60 * 60 * 1000; // 24h
 
 let _markets = [];   // in-memory mirror of latest fetch
-let _running = { markets: false, vix: false, fred: false };
+let _running = { markets: false, vix: false, fred: false, breaking: false, specialist: false, research: false };
 
 async function refreshMarkets() {
   if (_running.markets) return;
@@ -93,15 +97,49 @@ async function refreshFredDaily() {
   }
 }
 
+async function refreshNewsBatch(label, fetchFn) {
+  if (_running[label]) return;
+  _running[label] = true;
+  try {
+    const { items, failures } = await fetchFn();
+    if (items.length) {
+      const { inserted } = await db.upsertNewsItems(items);
+      console.log('[scheduler] news/' + label + ': ' + items.length + ' classified, ' + inserted + ' new'
+                  + (failures.length ? ' (' + failures.length + ' feed failures)' : ''));
+    } else {
+      console.warn('[scheduler] news/' + label + ': 0 items'
+                  + (failures.length ? ' — ' + failures.length + ' feed failures' : ''));
+    }
+  } catch (err) {
+    console.warn('[scheduler] news/' + label + ' failed:', err.message);
+  } finally {
+    _running[label] = false;
+  }
+}
+
+const refreshBreakingNews   = () => refreshNewsBatch('breaking',   rss.fetchBreaking);
+const refreshSpecialistNews = () => refreshNewsBatch('specialist', rss.fetchSpecialist);
+const refreshResearchNews   = () => refreshNewsBatch('research',   rss.fetchResearch);
+
 function start() {
-  // Run all three immediately on boot, then on intervals.
+  // Run everything once on boot, then on per-feed intervals.
   refreshMarkets();
   refreshFredDaily();
   refreshVixIntraday();
+  refreshBreakingNews();
+  refreshSpecialistNews();
+  refreshResearchNews();
 
   setInterval(refreshMarkets, MARKETS_INTERVAL_MS);
   setInterval(refreshVixIntraday, VIX_INTRADAY_INTERVAL_MS);
   setInterval(refreshFredDaily, FRED_INTERVAL_MS);
+  setInterval(refreshBreakingNews, NEWS_BREAKING_INTERVAL_MS);
+  setInterval(refreshSpecialistNews, NEWS_SPECIALIST_INTERVAL_MS);
+  setInterval(refreshResearchNews, NEWS_RESEARCH_INTERVAL_MS);
 }
 
-module.exports = { start, refreshMarkets, refreshVixIntraday, refreshFredDaily };
+module.exports = {
+  start,
+  refreshMarkets, refreshVixIntraday, refreshFredDaily,
+  refreshBreakingNews, refreshSpecialistNews, refreshResearchNews
+};

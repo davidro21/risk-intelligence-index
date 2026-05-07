@@ -151,6 +151,69 @@ async function getLatestFredBySeries(series) {
   };
 }
 
+// ── news_items ─────────────────────────────────────────────────────────────
+
+async function upsertNewsItems(items) {
+  if (!items || items.length === 0) return { inserted: 0 };
+  const p = getPool();
+  const client = await p.connect();
+  let inserted = 0;
+  try {
+    await client.query('BEGIN');
+    for (const it of items) {
+      const r = await client.query(
+        `INSERT INTO news_items
+            (source, title, link, published_at, cats, sentiment, sentiment_score, dedup_key)
+         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8)
+         ON CONFLICT (link) DO UPDATE SET
+            title = EXCLUDED.title,
+            cats = EXCLUDED.cats,
+            sentiment = EXCLUDED.sentiment,
+            sentiment_score = EXCLUDED.sentiment_score,
+            dedup_key = EXCLUDED.dedup_key,
+            fetched_at = NOW()
+         RETURNING (xmax = 0) AS new_row`,
+        [it.source, it.title, it.link, it.published_at, it.cats, it.sentiment, it.sentiment_score, it.dedup_key]
+      );
+      if (r.rows[0] && r.rows[0].new_row) inserted++;
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return { inserted };
+}
+
+// Read recent news, returning at most one row per dedup_key (highest-priority
+// source wins when multiple wires carry the same story).
+async function getRecentNews({ sources, hoursBack = 2, limit = 80, cat = null } = {}) {
+  // sources: array of source-name prefixes to filter to (case-insensitive
+  // includes match). If null, all sources.
+  const params = [];
+  const where = [`fetched_at > NOW() - INTERVAL '${Math.max(1, hoursBack)} hours'`];
+  if (cat) {
+    params.push(cat);
+    where.push(`$${params.length} = ANY(cats)`);
+  }
+  if (sources && sources.length) {
+    const conds = sources.map(s => {
+      params.push('%' + s.toLowerCase() + '%');
+      return `LOWER(source) LIKE $${params.length}`;
+    });
+    where.push('(' + conds.join(' OR ') + ')');
+  }
+  const sql = `SELECT source, title, link, published_at, cats, sentiment, sentiment_score, dedup_key, fetched_at
+                 FROM news_items
+                WHERE ${where.join(' AND ')}
+                ORDER BY COALESCE(published_at, fetched_at) DESC
+                LIMIT 500`;
+  const r = await query(sql, params);
+  return r.rows;
+}
+
 module.exports = {
   getPool,
   query,
@@ -160,5 +223,7 @@ module.exports = {
   getActiveMarkets,
   getMarketHistory,
   upsertFredObservation,
-  getLatestFredBySeries
+  getLatestFredBySeries,
+  upsertNewsItems,
+  getRecentNews
 };

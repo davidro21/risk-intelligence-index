@@ -9,6 +9,7 @@ const cors = require('cors');
 const db = require('./db/queries');
 const fred = require('./feeds/fred');
 const vix = require('./feeds/vix');
+const rss = require('./feeds/rss');
 const scheduler = require('./jobs/scheduler');
 
 const app = express();
@@ -97,14 +98,84 @@ app.get('/api/fred', async (_req, res) => {
   }
 });
 
+// ── /api/news/breaking ────────────────────────────────────────────────────────
+// Latest breaking/specialist news from the past 2 hours, deduplicated by
+// normalized headline. When multiple wires carry the same story, the highest-
+// priority source wins (Reuters > AP > Bloomberg > BBC > Politico > others).
+function dedupeRows(rows) {
+  const groups = new Map(); // dedup_key -> winning row
+  for (const r of rows) {
+    const key = r.dedup_key || r.link;
+    const existing = groups.get(key);
+    if (!existing) { groups.set(key, r); continue; }
+    const existingPrio = rss.sourcePriority(existing.source);
+    const incomingPrio = rss.sourcePriority(r.source);
+    if (incomingPrio < existingPrio) groups.set(key, r);
+  }
+  return Array.from(groups.values())
+    .sort((a, b) => new Date(b.published_at || b.fetched_at) - new Date(a.published_at || a.fetched_at));
+}
+
+app.get('/api/news/breaking', async (req, res) => {
+  try {
+    const cat = req.query.cat || null;
+    const hoursBack = Math.min(24, Math.max(1, parseInt(req.query.hours, 10) || 2));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 80));
+    const breakingSources = ['reuters','ap','bloomberg','bbc','politico','nyt','wapo','npr','fox','nbc','cyberscoop','krebsonsecurity','stat news','who news'];
+    const rows = await db.getRecentNews({ sources: breakingSources, hoursBack, cat });
+    const deduped = dedupeRows(rows).slice(0, limit);
+    res.json({
+      items: deduped.map(r => ({
+        source: r.source,
+        title: r.title,
+        link: r.link,
+        published_at: r.published_at,
+        cats: r.cats,
+        sentiment: r.sentiment,
+        sentiment_score: r.sentiment_score == null ? null : parseFloat(r.sentiment_score)
+      })),
+      count: deduped.length,
+      hours_back: hoursBack
+    });
+  } catch (err) {
+    console.error('[/api/news/breaking]', err.message);
+    res.status(500).json({ error: 'failed_to_fetch_news' });
+  }
+});
+
+// ── /api/news/research ────────────────────────────────────────────────────────
+// Research / think-tank / polling RSS for the Intelligence Reports section.
+app.get('/api/news/research', async (req, res) => {
+  try {
+    const cat = req.query.cat || null;
+    const hoursBack = Math.min(24*30, Math.max(24, parseInt(req.query.hours, 10) || 24*7));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 60));
+    const researchSources = ['rand','cfr','brookings','pew research','gallup','csis','atlantic council','imf blogs','belfer'];
+    const rows = await db.getRecentNews({ sources: researchSources, hoursBack, cat });
+    const deduped = dedupeRows(rows).slice(0, limit);
+    res.json({
+      items: deduped.map(r => ({
+        source: r.source,
+        title: r.title,
+        link: r.link,
+        published_at: r.published_at,
+        cats: r.cats,
+        sentiment: r.sentiment
+      })),
+      count: deduped.length
+    });
+  } catch (err) {
+    console.error('[/api/news/research]', err.message);
+    res.status(500).json({ error: 'failed_to_fetch_research' });
+  }
+});
+
 // ── Endpoints reserved for later phases ───────────────────────────────────────
 const NOT_BUILT_YET = (phase) => (_req, res) => {
   res.status(501).json({ error: 'Not implemented yet', phase });
 };
 
 app.get('/api/nm-signals',         NOT_BUILT_YET(4));
-app.get('/api/news/breaking',      NOT_BUILT_YET(3));
-app.get('/api/news/research',      NOT_BUILT_YET(3));
 app.get('/api/consensus/:id',      NOT_BUILT_YET(4));
 app.post('/api/signal-briefing',   NOT_BUILT_YET(4));
 app.get('/api/vix-driver',         NOT_BUILT_YET(4));

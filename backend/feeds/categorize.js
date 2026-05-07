@@ -83,6 +83,19 @@ function classify(text) {
   return null;
 }
 
+// Multi-cat for news: a single headline can be tagged with multiple cats
+// (e.g. "DOJ files antitrust lawsuit against Google" → legal + tech).
+function classifyMulti(text) {
+  const t = (text || '').toLowerCase();
+  const out = [];
+  for (const cat of CAT_PRIORITY) {
+    for (const re of KEYWORD_REGEX[cat]) {
+      if (re.test(t)) { out.push(cat); break; }
+    }
+  }
+  return out;
+}
+
 function isRejected(text) {
   const t = (text || '').toLowerCase();
   return REJECT_REGEX.some(re => re.test(t));
@@ -95,4 +108,4 @@ function formatVolume(num) {
   return '$' + Math.round(num);
 }
 
-module.exports = { classify, isRejected, formatVolume, CAT_PRIORITY };
+module.exports = { classify, classifyMulti, isRejected, formatVolume, CAT_PRIORITY };
