@@ -79,7 +79,7 @@ function normalize(rec) {
     id: rec.id,
     cat,
     title: rec.title,
-    current_prob: null,                      // Phase 1: probability extraction deferred
+    current_prob: null,                      // populated by enrichWithProbability
     forecasters: rec.forecasters,
     closes_at: rec.closes_at,
     prob_history: null,
@@ -87,7 +87,56 @@ function normalize(rec) {
   };
 }
 
-async function fetchActiveQuestions({ maxPages = 3 } = {}) {
+// Phase 2: fetch a single question's detail page to extract the current
+// consensus probability. The "Crowd Forecast" table on each detail page has
+// `<th class="text-right">Crowd Forecast</th>` followed by the per-outcome
+// percentages in `<td class="text-right">N%</td>`. The first such percentage
+// after the Crowd Forecast header is the "Yes" / first-outcome consensus,
+// which is what the cross-reference layer compares against market prices.
+async function fetchDetailProbability(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9'
+      }
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const headerIdx = html.indexOf('Crowd Forecast');
+    if (headerIdx === -1) return null;
+    const after = html.slice(headerIdx);
+    const m = after.match(/<td class="text-right">([0-9]+(?:\.[0-9]+)?)%<\/td>/);
+    if (!m) return null;
+    const pct = parseFloat(m[1]);
+    if (!isFinite(pct) || pct < 0 || pct > 100) return null;
+    return Math.round(pct * 10) / 10;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function enrichWithProbabilities(items, { concurrency = 3, perRequestDelayMs = 350, max = 60 } = {}) {
+  const slice = items.slice(0, max);
+  // Naive bounded concurrency: small N pool with simple round-robin.
+  let cursor = 0;
+  async function worker() {
+    while (cursor < slice.length) {
+      const i = cursor++;
+      const item = slice[i];
+      const prob = await fetchDetailProbability(item.url);
+      if (prob != null) item.current_prob = prob;
+      if (perRequestDelayMs) await new Promise(r => setTimeout(r, perRequestDelayMs));
+    }
+  }
+  const workers = Array(Math.min(concurrency, slice.length)).fill(0).map(() => worker());
+  await Promise.all(workers);
+  return items;
+}
+
+async function fetchActiveQuestions({ maxPages = 3, withProbabilities = true } = {}) {
   const out = [];
   const seen = new Set();
   for (let page = 1; page <= maxPages; page++) {
@@ -106,10 +155,12 @@ async function fetchActiveQuestions({ maxPages = 3 } = {}) {
       const norm = normalize(row);
       if (norm) out.push(norm);
     }
-    // Soft inter-page delay so we don't hammer them.
     await new Promise(r => setTimeout(r, 800));
+  }
+  if (withProbabilities && out.length > 0) {
+    await enrichWithProbabilities(out);
   }
   return out;
 }
 
-module.exports = { fetchActiveQuestions };
+module.exports = { fetchActiveQuestions, fetchDetailProbability };
