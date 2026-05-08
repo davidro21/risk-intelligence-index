@@ -304,6 +304,54 @@ async function getAiConsensus(market_id) {
   };
 }
 
+// ── ai_usage (spend ceiling + visibility) ──────────────────────────────────
+
+async function ensureAiUsageTable() {
+  // Idempotent — keeps Phase 1 deployments working without re-running db:init.
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_usage (
+      id            BIGSERIAL PRIMARY KEY,
+      endpoint      TEXT NOT NULL,
+      model         TEXT NOT NULL,
+      input_tokens  INTEGER,
+      output_tokens INTEGER,
+      est_cost_usd  NUMERIC(10,6) NOT NULL DEFAULT 0,
+      ip            TEXT,
+      cache_hit     BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS ai_usage_created_idx ON ai_usage(created_at DESC)`);
+}
+
+async function recordAiUsage({ endpoint, model, input_tokens, output_tokens, est_cost_usd, ip, cache_hit }) {
+  await query(
+    `INSERT INTO ai_usage (endpoint, model, input_tokens, output_tokens, est_cost_usd, ip, cache_hit)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [endpoint, model, input_tokens || null, output_tokens || null, est_cost_usd || 0, ip || null, !!cache_hit]
+  );
+}
+
+// "Today" is defined as midnight America/New_York → midnight America/New_York.
+// Postgres' AT TIME ZONE is the cleanest way to compute this without pulling
+// in a tz library.
+async function getAiUsageToday() {
+  const r = await query(`
+    SELECT
+      COUNT(*) AS calls,
+      COALESCE(SUM(est_cost_usd), 0) AS spend,
+      COUNT(*) FILTER (WHERE cache_hit) AS cache_hits
+    FROM ai_usage
+    WHERE created_at >= (date_trunc('day', NOW() AT TIME ZONE 'America/New_York') AT TIME ZONE 'America/New_York')
+  `);
+  const row = r.rows[0] || {};
+  return {
+    calls: parseInt(row.calls || '0', 10),
+    spend_usd: parseFloat(row.spend || '0'),
+    cache_hits: parseInt(row.cache_hits || '0', 10)
+  };
+}
+
 async function upsertAiConsensus(c) {
   await query(
     `INSERT INTO ai_consensus
@@ -445,5 +493,8 @@ module.exports = {
   getVixDriverCached,
   upsertVixDriver,
   getAiConsensus,
-  upsertAiConsensus
+  upsertAiConsensus,
+  ensureAiUsageTable,
+  recordAiUsage,
+  getAiUsageToday
 };

@@ -113,6 +113,23 @@ CREATE TABLE IF NOT EXISTS vix_driver (
   computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ── ai_usage ─────────────────────────────────────────────────────────────────
+-- Per-call accounting for every Anthropic call. Powers the daily spend
+-- ceiling enforced in the anthropic-client and the live spend readout in
+-- /api/ai-status.
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id              BIGSERIAL PRIMARY KEY,
+  endpoint        TEXT NOT NULL,
+  model           TEXT NOT NULL,
+  input_tokens    INTEGER,
+  output_tokens   INTEGER,
+  est_cost_usd    NUMERIC(10,6) NOT NULL DEFAULT 0,
+  ip              TEXT,
+  cache_hit       BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ai_usage_created_idx ON ai_usage(created_at DESC);
+
 -- ── pulse_surveys ────────────────────────────────────────────────────────────
 -- Phase 2 of the pulse-survey feature (delivery integrations). Empty at launch.
 CREATE TABLE IF NOT EXISTS pulse_surveys (

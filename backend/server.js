@@ -5,6 +5,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const db = require('./db/queries');
 const fred = require('./feeds/fred');
@@ -17,8 +18,25 @@ const aiConsensus = require('./ai/consensus');
 const aiPulseSurvey = require('./ai/pulse-survey');
 const scheduler = require('./jobs/scheduler');
 
-// Wraps an Anthropic-bearing async handler so AnthropicNotConfigured returns
-// a clean 503 with activation instructions instead of a generic 500.
+// Per-IP rate limit on AI endpoints. Default 10 calls/min/IP — configurable
+// via AI_RATE_LIMIT_PER_MIN. Trust Railway's edge proxy headers for client IP.
+const aiRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: parseInt(process.env.AI_RATE_LIMIT_PER_MIN || '10', 10),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    error: 'rate_limited',
+    message: 'Too many AI requests from this address. Please wait a moment and try again.'
+  }
+});
+
+// Wraps an Anthropic-bearing async handler so each typed error returns the
+// right HTTP status with an actionable message:
+//   - 503 anthropic_not_configured  — no API key set
+//   - 429 daily_spend_cap_reached   — hit server-side daily $ ceiling
+//   - 404 market_not_found          — bad consensus :id
+//   - 500 ai_call_failed            — anything else (logged)
 function wrapAnthropic(handler) {
   return async (req, res) => {
     try {
@@ -32,6 +50,14 @@ function wrapAnthropic(handler) {
           phase: 4
         });
       }
+      if (err && err.code === 'daily_spend_cap_reached') {
+        return res.status(429).json({
+          error: 'daily_spend_cap_reached',
+          message: 'Daily AI budget reached. Resets at midnight ET.',
+          spend_today: err.spend_today,
+          daily_limit: err.daily_limit
+        });
+      }
       if (err && err.code === 'market_not_found') {
         return res.status(404).json({ error: 'market_not_found', message: err.message });
       }
@@ -39,6 +65,11 @@ function wrapAnthropic(handler) {
       return res.status(500).json({ error: 'ai_call_failed', message: err.message });
     }
   };
+}
+
+// Helper to extract a usable IP from Railway's edge proxy.
+function clientIp(req) {
+  return (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim() || null;
 }
 
 const app = express();
@@ -219,35 +250,58 @@ app.get('/api/nm-signals', async (req, res) => {
 // each returns a clean 503 with activation instructions (see wrapAnthropic).
 
 // AI Platforms Consensus — cache-hit then live-fallback per the brief.
-app.get('/api/consensus/:id', wrapAnthropic(async (req) => {
-  return await aiConsensus.getConsensus(req.params.id);
+app.get('/api/consensus/:id', aiRateLimit, wrapAnthropic(async (req) => {
+  return await aiConsensus.getConsensus(req.params.id, { ip: clientIp(req) });
 }));
 
 // 6-hour cached side-panel signal briefing.
-app.post('/api/signal-briefing', wrapAnthropic(async (req) => {
-  return await aiSignalBriefing.generateBriefing(req.body || {});
+app.post('/api/signal-briefing', aiRateLimit, wrapAnthropic(async (req) => {
+  return await aiSignalBriefing.generateBriefing(req.body || {}, { ip: clientIp(req) });
 }));
 
 // "What's driving the VIX today" 2-3 sentence explainer.
-app.get('/api/vix-driver', wrapAnthropic(async () => {
-  return await aiVixDriver.getVixDriver();
+app.get('/api/vix-driver', aiRateLimit, wrapAnthropic(async (req) => {
+  return await aiVixDriver.getVixDriver({ ip: clientIp(req) });
 }));
 
 // Enterprise Pulse Survey generation.
-app.post('/api/pulse/generate-single', wrapAnthropic(async (req) => {
-  return await aiPulseSurvey.generateSingle(req.body || {});
+app.post('/api/pulse/generate-single', aiRateLimit, wrapAnthropic(async (req) => {
+  return await aiPulseSurvey.generateSingle(req.body || {}, { ip: clientIp(req) });
 }));
-app.post('/api/pulse/generate-custom', wrapAnthropic(async (req) => {
-  return await aiPulseSurvey.generateCustom(req.body || {});
+app.post('/api/pulse/generate-custom', aiRateLimit, wrapAnthropic(async (req) => {
+  return await aiPulseSurvey.generateCustom(req.body || {}, { ip: clientIp(req) });
 }));
 
-// Lightweight discovery endpoint so the frontend can decide whether to
-// render the AI panels at all (vs. show a "connect Anthropic" placeholder).
-app.get('/api/ai-status', (_req, res) => {
-  res.json({ anthropic_configured: ant.isConfigured(), model: ant.DEFAULT_MODEL });
+// Live AI status + spend visibility. Frontend uses this to decide whether
+// to render AI panels and to show a "AI budget remaining" indicator if the
+// product team wants one.
+app.get('/api/ai-status', async (_req, res) => {
+  try {
+    const usage = await db.getAiUsageToday().catch(() => ({ calls: 0, spend_usd: 0, cache_hits: 0 }));
+    const limit = ant.getDailyLimit();
+    res.json({
+      anthropic_configured: ant.isConfigured(),
+      model: ant.DEFAULT_MODEL,
+      daily_spend_used: Math.round(usage.spend_usd * 10000) / 10000,
+      daily_spend_limit: limit,
+      daily_spend_remaining: Math.max(0, Math.round((limit - usage.spend_usd) * 10000) / 10000),
+      daily_calls_total: usage.calls,
+      daily_calls_cache_hit: usage.cache_hits,
+      daily_calls_live: Math.max(0, usage.calls - usage.cache_hits),
+      cache_hit_ratio: usage.calls > 0 ? Math.round((usage.cache_hits / usage.calls) * 1000) / 10 : null,
+      rate_limit_per_minute_per_ip: parseInt(process.env.AI_RATE_LIMIT_PER_MIN || '10', 10)
+    });
+  } catch (err) {
+    console.error('[/api/ai-status]', err.message);
+    res.status(500).json({ error: 'ai_status_failed' });
+  }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log('[backend] listening on :' + PORT);
+  // Idempotent table create — keeps existing Phase 1 deployments working
+  // without re-running db:init. No-op if the table already exists.
+  try { await db.ensureAiUsageTable(); }
+  catch (err) { console.warn('[ai_usage] ensureTable failed:', err.message); }
   scheduler.start();
 });

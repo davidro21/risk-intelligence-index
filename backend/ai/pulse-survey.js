@@ -52,9 +52,14 @@ function buildCustomPrompt({ survey_name, topics, sector }) {
     + '"summary":"one short sentence describing what this survey covers"}';
 }
 
-async function generateSingle(req) {
+async function generateSingle(req, { ip = null } = {}) {
   const prompt = buildSinglePrompt(req || {});
-  const text = await ant.sendMessage({ prompt, maxTokens: 700 });
+  const text = await ant.sendMessage({
+    prompt,
+    maxTokens: ant.maxTokensFor('pulse'),
+    endpoint: 'pulse-single',
+    ip
+  });
   const parsed = ant.parseJSONFromResponse(text);
   return {
     questions: Array.isArray(parsed.questions) ? parsed.questions : [],
@@ -62,9 +67,14 @@ async function generateSingle(req) {
   };
 }
 
-async function generateCustom(req) {
+async function generateCustom(req, { ip = null } = {}) {
   const prompt = buildCustomPrompt(req || {});
-  const text = await ant.sendMessage({ prompt, maxTokens: 900 });
+  const text = await ant.sendMessage({
+    prompt,
+    maxTokens: 900,    // custom surveys need full headroom
+    endpoint: 'pulse-custom',
+    ip
+  });
   const parsed = ant.parseJSONFromResponse(text);
   return {
     survey_title: parsed.survey_title || (req && req.survey_name) || 'Survey',

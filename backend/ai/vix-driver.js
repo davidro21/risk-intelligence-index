@@ -31,7 +31,7 @@ async function getCurrentVixValue() {
   return null;
 }
 
-async function getVixDriver() {
+async function getVixDriver({ ip = null } = {}) {
   const vixValue = await getCurrentVixValue();
 
   // Cache check.
@@ -40,6 +40,8 @@ async function getVixDriver() {
     const age = Date.now() - new Date(cached.computed_at).getTime();
     const ttl = vix.isUSMarketOpen() ? MARKET_HOURS_TTL_MS : OFF_HOURS_TTL_MS;
     if (age < ttl) {
+      db.recordAiUsage({ endpoint: 'vix-driver', model: 'cache', cache_hit: true, ip, est_cost_usd: 0 })
+        .catch(() => {});
       return {
         ...cached.payload,
         vix_value: vixValue,
@@ -53,7 +55,12 @@ async function getVixDriver() {
   }
 
   const prompt = buildPrompt(vixValue);
-  const text = await ant.sendMessage({ prompt, maxTokens: 220 });
+  const text = await ant.sendMessage({
+    prompt,
+    maxTokens: ant.maxTokensFor('vix'),
+    endpoint: 'vix-driver',
+    ip
+  });
   const parsed = ant.parseJSONFromResponse(text);
 
   const payload = {

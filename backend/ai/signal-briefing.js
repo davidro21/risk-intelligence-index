@@ -27,7 +27,7 @@ function buildPrompt({ signal_name, category, probability, prev_probability }) {
     + '"color":"#hexcolor"}';
 }
 
-async function generateBriefing({ signal_id, signal_name, category, probability, prev_probability }) {
+async function generateBriefing({ signal_id, signal_name, category, probability, prev_probability }, { ip = null } = {}) {
   if (!signal_id) throw new Error('signal_id required');
   if (!signal_name) throw new Error('signal_name required');
 
@@ -39,13 +39,21 @@ async function generateBriefing({ signal_id, signal_name, category, probability,
       ? Math.abs(probability - cached.prob_at_compute)
       : 0;
     if (age < CACHE_TTL_MS && probDelta <= PROB_INVALIDATION_THRESHOLD) {
+      // Record cache hit for visibility (no spend).
+      db.recordAiUsage({ endpoint: 'signal-briefing', model: 'cache', cache_hit: true, ip, est_cost_usd: 0 })
+        .catch(() => {});
       return cached.payload;
     }
   }
 
   // Live call.
   const prompt = buildPrompt({ signal_name, category, probability, prev_probability });
-  const text = await ant.sendMessage({ prompt, maxTokens: 700 });
+  const text = await ant.sendMessage({
+    prompt,
+    maxTokens: ant.maxTokensFor('briefing'),
+    endpoint: 'signal-briefing',
+    ip
+  });
   const parsed = ant.parseJSONFromResponse(text);
 
   // Defensive defaults so the frontend never sees missing fields.

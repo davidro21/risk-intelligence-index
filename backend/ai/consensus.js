@@ -30,10 +30,14 @@ function pctOf(models, id) {
   return m && typeof m.pct === 'number' ? m.pct : null;
 }
 
-async function getConsensus(marketId) {
+async function getConsensus(marketId, { ip = null } = {}) {
   // Cache hit?
   const cached = await db.getAiConsensus(marketId);
-  if (cached) return { ...cached, cache: 'hit' };
+  if (cached) {
+    db.recordAiUsage({ endpoint: 'consensus', model: 'cache', cache_hit: true, ip, est_cost_usd: 0 })
+      .catch(() => {});
+    return { ...cached, cache: 'hit' };
+  }
 
   // Live fallback — need market context for the prompt.
   const market = await db.getMarketById(marketId);
@@ -48,7 +52,12 @@ async function getConsensus(marketId) {
     category: market.cat,
     probability: market.prob
   });
-  const text = await ant.sendMessage({ prompt, maxTokens: 500 });
+  const text = await ant.sendMessage({
+    prompt,
+    maxTokens: ant.maxTokensFor('consensus'),
+    endpoint: 'consensus',
+    ip
+  });
   const parsed = ant.parseJSONFromResponse(text);
   const models = parsed.models || [];
 
