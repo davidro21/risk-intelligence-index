@@ -187,6 +187,150 @@ async function upsertNewsItems(items) {
   return { inserted };
 }
 
+// ── markets — single read by id ────────────────────────────────────────────
+
+async function getMarketById(id) {
+  const r = await query(
+    `SELECT id, cat, name, platform, prob, prev_prob, vol_24h, url
+       FROM markets
+      WHERE id = $1
+      LIMIT 1`,
+    [id]
+  );
+  if (r.rows.length === 0) return null;
+  const row = r.rows[0];
+  return {
+    id: row.id,
+    cat: row.cat,
+    name: row.name,
+    platform: row.platform,
+    prob: row.prob == null ? null : parseFloat(row.prob),
+    prev: row.prev_prob == null ? null : parseFloat(row.prev_prob),
+    vol_24h: row.vol_24h,
+    url: row.url
+  };
+}
+
+// ── signal_briefings ───────────────────────────────────────────────────────
+
+async function getSignalBriefing(signal_id) {
+  const r = await query(
+    `SELECT signal_id, payload, prob_at_compute, computed_at
+       FROM signal_briefings
+      WHERE signal_id = $1
+      LIMIT 1`,
+    [signal_id]
+  );
+  if (r.rows.length === 0) return null;
+  const row = r.rows[0];
+  return {
+    signal_id: row.signal_id,
+    payload: row.payload,
+    prob_at_compute: row.prob_at_compute == null ? null : parseFloat(row.prob_at_compute),
+    computed_at: row.computed_at.toISOString()
+  };
+}
+
+async function upsertSignalBriefing({ signal_id, payload, prob_at_compute }) {
+  await query(
+    `INSERT INTO signal_briefings (signal_id, payload, prob_at_compute, computed_at)
+     VALUES ($1, $2::jsonb, $3, NOW())
+     ON CONFLICT (signal_id) DO UPDATE SET
+       payload = EXCLUDED.payload,
+       prob_at_compute = EXCLUDED.prob_at_compute,
+       computed_at = NOW()`,
+    [signal_id, JSON.stringify(payload || {}), prob_at_compute]
+  );
+}
+
+// ── vix_driver (singleton row id='latest') ─────────────────────────────────
+
+async function getVixDriverCached() {
+  const r = await query(
+    `SELECT id, payload, vix_at_compute, computed_at
+       FROM vix_driver
+      WHERE id = 'latest'
+      LIMIT 1`
+  );
+  if (r.rows.length === 0) return null;
+  const row = r.rows[0];
+  return {
+    payload: row.payload,
+    vix_at_compute: row.vix_at_compute == null ? null : parseFloat(row.vix_at_compute),
+    computed_at: row.computed_at.toISOString()
+  };
+}
+
+async function upsertVixDriver({ payload, vix_at_compute }) {
+  await query(
+    `INSERT INTO vix_driver (id, payload, vix_at_compute, computed_at)
+     VALUES ('latest', $1::jsonb, $2, NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       payload = EXCLUDED.payload,
+       vix_at_compute = EXCLUDED.vix_at_compute,
+       computed_at = NOW()`,
+    [JSON.stringify(payload || {}), vix_at_compute]
+  );
+}
+
+// ── ai_consensus ───────────────────────────────────────────────────────────
+
+async function getAiConsensus(market_id) {
+  const r = await query(
+    `SELECT market_id, claude_pct, deepseek_pct, gemini_pct, gpt4_pct,
+            grok_pct, mistral_pct, perplexity_pct, avg_pct, spread,
+            consensus_note, computed_at
+       FROM ai_consensus
+      WHERE market_id = $1
+      LIMIT 1`,
+    [market_id]
+  );
+  if (r.rows.length === 0) return null;
+  const row = r.rows[0];
+  const num = (v) => v == null ? null : parseFloat(v);
+  return {
+    market_id: row.market_id,
+    claude_pct: num(row.claude_pct),
+    deepseek_pct: num(row.deepseek_pct),
+    gemini_pct: num(row.gemini_pct),
+    gpt4_pct: num(row.gpt4_pct),
+    grok_pct: num(row.grok_pct),
+    mistral_pct: num(row.mistral_pct),
+    perplexity_pct: num(row.perplexity_pct),
+    avg_pct: num(row.avg_pct),
+    spread: num(row.spread),
+    consensus_note: row.consensus_note,
+    computed_at: row.computed_at.toISOString()
+  };
+}
+
+async function upsertAiConsensus(c) {
+  await query(
+    `INSERT INTO ai_consensus
+       (market_id, claude_pct, deepseek_pct, gemini_pct, gpt4_pct,
+        grok_pct, mistral_pct, perplexity_pct, avg_pct, spread,
+        consensus_note, computed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+     ON CONFLICT (market_id) DO UPDATE SET
+       claude_pct = EXCLUDED.claude_pct,
+       deepseek_pct = EXCLUDED.deepseek_pct,
+       gemini_pct = EXCLUDED.gemini_pct,
+       gpt4_pct = EXCLUDED.gpt4_pct,
+       grok_pct = EXCLUDED.grok_pct,
+       mistral_pct = EXCLUDED.mistral_pct,
+       perplexity_pct = EXCLUDED.perplexity_pct,
+       avg_pct = EXCLUDED.avg_pct,
+       spread = EXCLUDED.spread,
+       consensus_note = EXCLUDED.consensus_note,
+       computed_at = NOW()`,
+    [
+      c.market_id, c.claude_pct, c.deepseek_pct, c.gemini_pct, c.gpt4_pct,
+      c.grok_pct, c.mistral_pct, c.perplexity_pct, c.avg_pct, c.spread,
+      c.consensus_note
+    ]
+  );
+}
+
 // ── gjopen_questions ───────────────────────────────────────────────────────
 
 async function upsertGJOpenQuestions(rows) {
@@ -294,5 +438,12 @@ module.exports = {
   upsertNewsItems,
   getRecentNews,
   upsertGJOpenQuestions,
-  getActiveGJOpenQuestions
+  getActiveGJOpenQuestions,
+  getMarketById,
+  getSignalBriefing,
+  upsertSignalBriefing,
+  getVixDriverCached,
+  upsertVixDriver,
+  getAiConsensus,
+  upsertAiConsensus
 };

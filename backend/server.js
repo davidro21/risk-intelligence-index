@@ -10,7 +10,36 @@ const db = require('./db/queries');
 const fred = require('./feeds/fred');
 const vix = require('./feeds/vix');
 const rss = require('./feeds/rss');
+const ant = require('./ai/anthropic-client');
+const aiSignalBriefing = require('./ai/signal-briefing');
+const aiVixDriver = require('./ai/vix-driver');
+const aiConsensus = require('./ai/consensus');
+const aiPulseSurvey = require('./ai/pulse-survey');
 const scheduler = require('./jobs/scheduler');
+
+// Wraps an Anthropic-bearing async handler so AnthropicNotConfigured returns
+// a clean 503 with activation instructions instead of a generic 500.
+function wrapAnthropic(handler) {
+  return async (req, res) => {
+    try {
+      const result = await handler(req, res);
+      if (result !== undefined) res.json(result);
+    } catch (err) {
+      if (err && err.code === 'anthropic_not_configured') {
+        return res.status(503).json({
+          error: 'anthropic_not_configured',
+          message: 'AI features are not yet enabled. Set ANTHROPIC_API_KEY on the backend to activate.',
+          phase: 4
+        });
+      }
+      if (err && err.code === 'market_not_found') {
+        return res.status(404).json({ error: 'market_not_found', message: err.message });
+      }
+      console.error('[ai handler]', err.message);
+      return res.status(500).json({ error: 'ai_call_failed', message: err.message });
+    }
+  };
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -185,15 +214,38 @@ app.get('/api/nm-signals', async (req, res) => {
   }
 });
 
-// ── Endpoints reserved for later phases ───────────────────────────────────────
-const NOT_BUILT_YET = (phase) => (_req, res) => {
-  res.status(501).json({ error: 'Not implemented yet', phase });
-};
-app.get('/api/consensus/:id',      NOT_BUILT_YET(4));
-app.post('/api/signal-briefing',   NOT_BUILT_YET(4));
-app.get('/api/vix-driver',         NOT_BUILT_YET(4));
-app.post('/api/pulse/generate-single', NOT_BUILT_YET(5));
-app.post('/api/pulse/generate-custom', NOT_BUILT_YET(5));
+// ── Anthropic-bearing endpoints ───────────────────────────────────────────────
+// All 5 of these require ANTHROPIC_API_KEY. Until that's set on the backend,
+// each returns a clean 503 with activation instructions (see wrapAnthropic).
+
+// AI Platforms Consensus — cache-hit then live-fallback per the brief.
+app.get('/api/consensus/:id', wrapAnthropic(async (req) => {
+  return await aiConsensus.getConsensus(req.params.id);
+}));
+
+// 6-hour cached side-panel signal briefing.
+app.post('/api/signal-briefing', wrapAnthropic(async (req) => {
+  return await aiSignalBriefing.generateBriefing(req.body || {});
+}));
+
+// "What's driving the VIX today" 2-3 sentence explainer.
+app.get('/api/vix-driver', wrapAnthropic(async () => {
+  return await aiVixDriver.getVixDriver();
+}));
+
+// Enterprise Pulse Survey generation.
+app.post('/api/pulse/generate-single', wrapAnthropic(async (req) => {
+  return await aiPulseSurvey.generateSingle(req.body || {});
+}));
+app.post('/api/pulse/generate-custom', wrapAnthropic(async (req) => {
+  return await aiPulseSurvey.generateCustom(req.body || {});
+}));
+
+// Lightweight discovery endpoint so the frontend can decide whether to
+// render the AI panels at all (vs. show a "connect Anthropic" placeholder).
+app.get('/api/ai-status', (_req, res) => {
+  res.json({ anthropic_configured: ant.isConfigured(), model: ant.DEFAULT_MODEL });
+});
 
 app.listen(PORT, () => {
   console.log('[backend] listening on :' + PORT);

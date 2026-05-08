@@ -1951,36 +1951,33 @@ async function _spFetch(id, d){
   const isNm = d.type==='nm';
   const pct  = d.prob!=null ? d.prob : d.pct;
   const prev = d.prev!=null ? d.prev : pct;
-  const extra= isNm ? (d.detail||'') : ('Platform: '+(d.platform||'')+', Volume: '+(d.vol||''));
-  const prompt = 'You are a risk intelligence analyst. Analyze only this specific signal.\n\n'
-    +'Signal: '+d.name+'\n'
-    +'Type: '+(isNm?'Survey/poll':'Prediction market')+'\n'
-    +'Current: '+(pct!=null?pct+'%':'N/A')+'  Previous: '+(prev!=null?prev+'%':'N/A')+'\n'
-    +'Source: '+(isNm?(d.src||''):(d.platform||''))+'\n'
-    +'Label: '+(isNm?(d.lbl||''):(d.vol||''))+'\n'
-    +'Context: '+extra+'\n'
-    +'Category: '+d.cat+'  Date: April 14, 2026\n\n'
-    +'Reply ONLY with valid JSON, no markdown:\n'
-    +'{"headline":"max 12 words on why this signal is at this level",'
-    +'"direction":"up|down|flat",'
-    +'"trend_pts":[7 realistic numbers oldest-to-newest ending near current value],'
-    +'"drivers":[{"title":"3-5 word label","body":"one sentence ~15 words"},'
-    +'{"title":"3-5 word label","body":"one sentence ~15 words"},'
-    +'{"title":"3-5 word label","body":"one sentence ~15 words"}],'
-    +'"watch":{"event":"specific event name","detail":"one sentence why it matters"},'
-    +'"color":"#hexcolor"}';
   const el = document.getElementById('sp-body');
+  if(!PROXY_BASE_URL){
+    if(el) el.innerHTML = _aiPlaceholder('AI briefing');
+    return;
+  }
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,messages:[{role:'user',content:prompt}]})
+    const res = await fetch(`${PROXY_BASE_URL}/signal-briefing`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        signal_id: id,
+        signal_name: d.name,
+        category: d.cat,
+        probability: pct,
+        prev_probability: prev,
+        industry_label: isNm ? (d.src||'') : (d.platform||'')
+      })
     });
-    const raw = (await res.json()).content.map(x=>x.text||'').join('').trim()
-      .replace(/^```json\s*/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    const j = JSON.parse((raw.match(/\{[\s\S]*\}/)||['{}'])[0]);
+    if(res.status===503){ if(el) el.innerHTML = _aiPlaceholder('AI briefing'); return; }
+    if(!res.ok) throw new Error('briefing HTTP '+res.status);
+    const j = await res.json();
     const col = j.color||'#378ADD';
     const pts = Array.isArray(j.trend_pts)&&j.trend_pts.length>=2 ? j.trend_pts : [pct||50,pct||50];
-    const trend = j.direction||'flat';
+    // Backend payload is {trend_pts, drivers, watch, color}. Derive trend from
+    // current vs previous probability rather than asking the model for it.
+    const _diff = (pct!=null&&prev!=null) ? (pct-prev) : 0;
+    const trend = _diff > 1 ? 'up' : _diff < -1 ? 'down' : 'flat';
     const tCol = trend==='up'?'#0a6640':trend==='down'?'#991f1f':'#555';
     const tBg  = trend==='up'?'#d1f5e8':trend==='down'?'#fde8e8':'var(--bg2)';
     const diff = (pct!=null&&prev!=null) ? (pct-prev) : 0;
@@ -2002,7 +1999,6 @@ async function _spFetch(id, d){
       +'</div>'
       +'<div>'
         +'<div class="sp-section-lbl">Analysis</div>'
-        +'<div class="sp-headline">'+(j.headline||'')+'</div>'
         +'<div style="display:flex;flex-direction:column">'
           +(j.drivers||[]).map(dr=>
             '<div class="sp-driver">'
@@ -2103,40 +2099,40 @@ async function _spFetchConsensus(id, d, marketPct) {
   const mount = document.getElementById('ai-consensus-mount-'+id);
   if (!mount) return;
   const isNm = d.type==='nm';
-  const prompt =
-    'You are simulating how different AI platforms would independently assess a risk signal\'s probability.\n\n'
-    +'Signal: '+d.name+'\n'
-    +'Category: '+d.cat+'\n'
-    +'Market/survey current value: '+(marketPct!=null?marketPct+'%':'N/A')+'\n'
-    +'Type: '+(isNm?'Survey/poll signal':'Prediction market')+'\n'
-    +'Date: April 15, 2026\n\n'
-    +'Give realistic probability estimates that each major AI platform would plausibly give, reflecting their known tendencies: '
-    +'Claude: nuanced/cautious; GPT-4o: slightly optimistic; Gemini: data-driven/moderate; Grok: contrarian/bold; '
-    +'DeepSeek: quantitative/analytical; Mistral: conservative/European-policy-aware; Perplexity: search-grounded/news-anchored. '
-    +'Estimates should reflect genuine variation — avoid clustering all models within 2-3pp of each other.\n\n'
-    +'Reply ONLY with valid JSON, no markdown fences:\n'
-    +'{"models":['
-    +'{"id":"claude","pct":NUMBER},'
-    +'{"id":"deepseek","pct":NUMBER},'
-    +'{"id":"gemini","pct":NUMBER},'
-    +'{"id":"gpt4","pct":NUMBER},'
-    +'{"id":"grok","pct":NUMBER},'
-    +'{"id":"mistral","pct":NUMBER},'
-    +'{"id":"perplexity","pct":NUMBER}'
-    +'],"consensus_note":"one sentence max 15 words on where models agree or diverge"}';
+  // The cached consensus is keyed on market_id, not non-monied signal IDs.
+  // Skip for non-monied; show a tasteful explanation instead.
+  if (isNm) {
+    mount.innerHTML = '<div class="ai-consensus-wrap"><div class="ai-consensus-hdr">'
+      +'<span class="ai-consensus-title">AI Platforms Consensus</span></div>'
+      +'<div style="font-size:10px;color:var(--text3);padding:8px 0">'
+      +'Per-platform consensus is computed for monied prediction markets only.</div></div>';
+    return;
+  }
+  if (!PROXY_BASE_URL) {
+    mount.innerHTML = _aiPlaceholder('AI Platforms Consensus');
+    return;
+  }
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,messages:[{role:'user',content:prompt}]})
-    });
-    const raw = (await res.json()).content.map(x=>x.text||'').join('').trim()
-      .replace(/^```json\s*/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    const j = JSON.parse((raw.match(/\{[\s\S]*\}/)||['{}'])[0]);
+    const res = await fetch(`${PROXY_BASE_URL}/consensus/${encodeURIComponent(id)}`);
+    if (res.status === 503) { mount.innerHTML = _aiPlaceholder('AI Platforms Consensus'); return; }
+    if (!res.ok) throw new Error('consensus HTTP ' + res.status);
+    const j = await res.json();
     if (!mount) return;
-    const models = (j.models||[]);
-    const pcts = models.map(m=>m.pct).filter(v=>typeof v==='number');
-    const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
-    const spread = pcts.length>=2 ? (Math.max(...pcts)-Math.min(...pcts)) : 0;
+    // Backend returns flat columns; transform to the same {id,pct} shape the
+    // existing render code expects.
+    const models = [
+      {id:'claude',     pct:j.claude_pct},
+      {id:'deepseek',   pct:j.deepseek_pct},
+      {id:'gemini',     pct:j.gemini_pct},
+      {id:'gpt4',       pct:j.gpt4_pct},
+      {id:'grok',       pct:j.grok_pct},
+      {id:'mistral',    pct:j.mistral_pct},
+      {id:'perplexity', pct:j.perplexity_pct}
+    ].filter(m => typeof m.pct === 'number');
+    j.consensus_note = j.consensus_note || '';
+    const pcts = models.map(m=>m.pct);
+    const avg = j.avg_pct != null ? Math.round(j.avg_pct) : (pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null);
+    const spread = j.spread != null ? j.spread : (pcts.length>=2 ? (Math.max(...pcts)-Math.min(...pcts)) : 0);
     const avgCol = avg!=null ? (avg>=60?'#0a6640':avg>=35?'#ba7517':'#991f1f') : 'var(--text)';
 
     function barColor(pct) {
@@ -2396,6 +2392,20 @@ function _vixZone(v){
   if(v<40)  return {label:'⚠ Fear Zone',     bg:'#fde8e8', color:'#791f1f'};
   return         {label:'⚠ Crisis Zone',   bg:'#fce8f0', color:'#4b1528'};
 }
+// Placeholder UI for the four AI-bearing features when the backend reports
+// Anthropic isn't configured yet (HTTP 503 from the proxy endpoints).
+function _aiPlaceholder(label){
+  return '<div style="background:linear-gradient(135deg,#fff8eb,#fff0dc);border:1px solid #f0d6a8;border-radius:6px;padding:10px 12px;font-size:10px;color:#633806;line-height:1.5">'
+    +'<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
+    +'<svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="5" stroke="#ba7517" stroke-width="1"/><path d="M5.5 3v3M5.5 7.5v.5" stroke="#ba7517" stroke-width="1" stroke-linecap="round"/></svg>'
+    +(label||'AI feature')+' pending</div>'
+    +'<div>Connect an Anthropic API key on the backend to enable this feature.</div>'
+    +'</div>';
+}
+function _aiPlaceholderInline(label){
+  return '<div style="font-size:10px;color:var(--text3);font-style:italic">'+(label||'AI analysis')+' pending — connect Anthropic API to enable.</div>';
+}
+
 // ── Live news fetch ───────────────────────────────────────────────────────────
 function _humanTimeAgo(iso){
   if(!iso) return '';
@@ -2564,23 +2574,13 @@ function buildAll(){buildMktGrid();buildNmGrid();buildBreaking();buildRptSrcs();
 async function fetchVixDriver(){
   const el = document.getElementById('vix-driver-body');
   const credit = document.getElementById('vix-driver-credit');
-  const vixBig = document.getElementById('vix-big');
   if(!el) return;
-  const vixVal = (vixBig && vixBig.textContent) ? vixBig.textContent.trim() : '25.78';
-  const prompt =
-    'You are a financial markets analyst. Today is April 22, 2026. The VIX is currently at '+vixVal+'.\n'
-    +'In exactly 2-3 sentences, identify the single most important event, data release, or market development '
-    +'driving the VIX at this level today. Be specific — name the actual event, not generic factors. '
-    +'Then in one short sentence state whether this is pushing the VIX up or down and by how much roughly.\n'
-    +'Format: {"driver":"event name (5 words max)","detail":"2-3 sentence explanation","direction":"up|down|flat","change":"e.g. +2.1 pts"}';
+  if(!PROXY_BASE_URL){ el.innerHTML = _aiPlaceholderInline('Driver analysis'); return; }
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:220,messages:[{role:'user',content:prompt}]})
-    });
-    const raw = (await res.json()).content.map(x=>x.text||'').join('').trim()
-      .replace(/^```json\s*/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    const j = JSON.parse((raw.match(/\{[\s\S]*\}/)||['{}'])[0]);
+    const res = await fetch(`${PROXY_BASE_URL}/vix-driver`);
+    if(res.status === 503){ el.innerHTML = _aiPlaceholderInline('Driver analysis'); return; }
+    if(!res.ok) throw new Error('vix-driver HTTP '+res.status);
+    const j = await res.json();
     const dirCol = j.direction==='up'?'#991f1f':j.direction==='down'?'#0a6640':'#ba7517';
     const dirBg  = j.direction==='up'?'#fde8e8':j.direction==='down'?'#d1f5e8':'#fff0dc';
     const dirArrow = j.direction==='up'?'▲':j.direction==='down'?'▼':'→';
@@ -3541,13 +3541,15 @@ async function generateCustomSurvey() {
     +'],"summary":"one short sentence describing what this survey covers"}';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:prompt}]})
+    if(!PROXY_BASE_URL){ body.innerHTML = _aiPlaceholder('Survey generation'); btn.textContent='Generate Survey →'; btn.style.opacity='1'; btn.disabled=false; return; }
+    const res = await fetch(`${PROXY_BASE_URL}/pulse/generate-custom`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ survey_name: surveyName, topics: selected, sector })
     });
-    const raw = (await res.json()).content.map(x=>x.text||'').join('').trim()
-      .replace(/^```json\s*/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    const j = JSON.parse((raw.match(/\{[\s\S]*\}/)||['{}'])[0]);
+    if(res.status === 503){ body.innerHTML = _aiPlaceholder('Survey generation'); btn.textContent='Generate Survey →'; btn.style.opacity='1'; btn.disabled=false; return; }
+    if(!res.ok) throw new Error('pulse-custom HTTP '+res.status);
+    const j = await res.json();
     _pulseQuestions = j.questions || [];
     _pulseIndustryContext = j.summary || '';
 
@@ -3603,13 +3605,15 @@ async function renderPulseSurvey() {
     +'{"num":5,"text":"question text","type":"open","placeholder":"Share your thoughts…"}'
     +'],"industry_context":"one short sentence on why this topic is relevant to '+ind.label+' professionals"}';
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,messages:[{role:'user',content:prompt}]})
+    if(!PROXY_BASE_URL){ body.innerHTML = _aiPlaceholder('Survey generation'); return; }
+    const res = await fetch(`${PROXY_BASE_URL}/pulse/generate-single`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ signal_name: d.name, category: d.cat, probability: pct, industry_label: ind.label })
     });
-    const raw = (await res.json()).content.map(x=>x.text||'').join('').trim()
-      .replace(/^```json\s*/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    const j = JSON.parse((raw.match(/\{[\s\S]*\}/)||['{}'])[0]);
+    if(res.status === 503){ body.innerHTML = _aiPlaceholder('Survey generation'); return; }
+    if(!res.ok) throw new Error('pulse-single HTTP '+res.status);
+    const j = await res.json();
     _pulseQuestions = j.questions || [];
     _pulseIndustryContext = j.industry_context || '';
     renderSurveyQuestions(body);
