@@ -9,7 +9,7 @@
 // (history candlesticks, portfolio), but /events public reads need no
 // signature.
 
-const { classify, isRejected, formatVolume } = require('./categorize');
+const { classify, isRejected, isExcluded, formatVolume } = require('./categorize');
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2';
 
@@ -53,6 +53,7 @@ function normalize(m) {
   const sigText = [m.title, m.yes_sub_title, m.no_sub_title]
     .filter(Boolean).join(' ');
   if (isRejected(sigText)) return null;
+  if (isExcluded(sigText)) return null;
   const cat = classify(sigText);
   if (!cat) return null;
 

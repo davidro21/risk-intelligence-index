@@ -28,7 +28,7 @@ const KEYWORDS = {
     'ireland','scotland','wales','greece','portugal','turkey','egypt','iraq','afghanistan','pakistan','bangladesh','india',
     'nigeria','kenya','ethiopia','philippines','malaysia','thailand','saudi arabia','qatar','kuwait','uae','jordan','lebanon','myanmar','sudan',
     // Nationality / adjective forms
-    'iranian','israeli','syrian','ukrainian','russian','chinese','korean','japanese',
+    'iranian','israeli','syrian','ukrainian','russian','chinese','korean','japanese','taiwanese',
     'brazilian','mexican','french','german','italian','spanish','british','polish','indonesian','vietnamese','australian','canadian','european',
     'argentinian','argentine','chilean','colombian','peruvian','hungarian','romanian','austrian','dutch','belgian','swiss','swedish','norwegian','danish','finnish',
     'irish','scottish','welsh','greek','portuguese','turkish','egyptian','iraqi','afghan','pakistani','bangladeshi','indian',
@@ -67,20 +67,107 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ── User-curated lists (takes priority over the keyword classifier) ─────────
+//
+// CURATED_INCLUDE pulls specific titles or title-fragments into a chosen cat,
+// overriding the keyword classifier. Added as the user sends curated lists
+// per category.
+//
+// CURATED_EXCLUDE drops markets entirely regardless of cat — distinct from
+// REJECT_KEYWORDS (which is structural: sports/entertainment), this is the
+// product team's curation knob.
+const CURATED_INCLUDE = {
+  geo: [
+    // Geopolitics signals not already covered by existing country/leader
+    // keywords. Drives the curated geo set the user has approved for the
+    // Monied Markets section.
+    'greenland',
+    'starmer',
+    'panama canal',
+    'panama',
+    'opec',
+    'leave opec',
+    'mohammed bin salman',
+    'bin salman',
+    'kharg',
+    'strait of hormuz',
+    'hormuz',
+    'world leaders',
+    'leaders will leave office',
+    'leaders leave office',
+    'free trade agreement with china',
+    'trade agreement with china',
+    'embassy in iran',
+    'reopen its embassy'
+  ]
+  // Other cats (uspol, fin, tech, cyber, legal, safety, medical) will be
+  // populated as the user shares their curated lists.
+};
+
+const CURATED_EXCLUDE = [
+  // Trump meetings — per user: "We do not care about who Trump meets with".
+  'will trump meet',
+  'who will trump meet',
+  'trump meet with',
+  'trump meets with',
+  'trump meeting with',
+  "trump's meeting",
+  'where will trump',
+  'first to meet',
+  'first person trump',
+  // Leader visits to other countries — per user: "We do not care about
+  // leaders visiting other countries".
+  'trump visit',
+  'trump visits',
+  'putin visit',
+  'putin visits',
+  'xi visit',
+  'xi visits',
+  'xi jinping visit',
+  'biden visit',
+  'biden visits',
+  'macron visit',
+  'macron visits',
+  'netanyahu visit',
+  'netanyahu visits',
+  'starmer visit',
+  'modi visit'
+];
+
 const KEYWORD_REGEX = {};
 for (const cat of CAT_PRIORITY) {
   KEYWORD_REGEX[cat] = (KEYWORDS[cat] || []).map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
 }
 const REJECT_REGEX = REJECT_KEYWORDS.map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+const CURATED_INCLUDE_REGEX = {};
+for (const cat of Object.keys(CURATED_INCLUDE)) {
+  CURATED_INCLUDE_REGEX[cat] = CURATED_INCLUDE[cat].map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+}
+const CURATED_EXCLUDE_REGEX = CURATED_EXCLUDE.map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
 
 function classify(text) {
   const t = (text || '').toLowerCase();
+  // 1. Curated include — explicit cat assignment by the product team.
+  for (const cat of Object.keys(CURATED_INCLUDE_REGEX)) {
+    for (const re of CURATED_INCLUDE_REGEX[cat]) {
+      if (re.test(t)) return cat;
+    }
+  }
+  // 2. Keyword classifier — fallback for anything not in a curated list.
   for (const cat of CAT_PRIORITY) {
     for (const re of KEYWORD_REGEX[cat]) {
       if (re.test(t)) return cat;
     }
   }
   return null;
+}
+
+// Curated exclude — kept separate from isRejected() (which handles
+// sports/entertainment structurally). Markets matching either function are
+// dropped before they hit /api/markets.
+function isExcluded(text) {
+  const t = (text || '').toLowerCase();
+  return CURATED_EXCLUDE_REGEX.some(re => re.test(t));
 }
 
 // Multi-cat for news: a single headline can be tagged with multiple cats
@@ -108,4 +195,4 @@ function formatVolume(num) {
   return '$' + Math.round(num);
 }
 
-module.exports = { classify, classifyMulti, isRejected, formatVolume, CAT_PRIORITY };
+module.exports = { classify, classifyMulti, isRejected, isExcluded, formatVolume, CAT_PRIORITY };

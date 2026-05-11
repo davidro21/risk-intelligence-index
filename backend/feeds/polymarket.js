@@ -3,7 +3,7 @@
 // classifies each market into one of the 8 canonical category IDs via
 // the shared categorize module.
 
-const { classify, isRejected, formatVolume } = require('./categorize');
+const { classify, isRejected, isExcluded, formatVolume } = require('./categorize');
 
 const GAMMA_URL = 'https://gamma-api.polymarket.com/markets';
 
@@ -33,6 +33,7 @@ function normalize(rawMarket) {
   // resolution-source boilerplate.
   const sigText = [rawMarket.question, rawMarket.slug].filter(Boolean).join(' ');
   if (isRejected(sigText)) return null;
+  if (isExcluded(sigText)) return null;
   const cat = classify(sigText);
   if (!cat) return null;
 
