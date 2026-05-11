@@ -60,7 +60,14 @@ const REJECT_KEYWORDS = [
   'oscars','grammy','emmy','tony awards','golden globe',
   'eurovision','met gala',
   'taylor swift','kim kardashian','elon musk tweet','tom cruise','drake',
-  'mr beast','mrbeast','league of legends','lol','esports','dota'
+  'mr beast','mrbeast','league of legends','lol','esports','dota',
+  // Esports + competitive gaming
+  'counter-strike','counterstrike','cs:go','csgo','cs2','valorant',
+  'rocket league','overwatch','fortnite','apex legends','starcraft',
+  'pubg','call of duty','cod warzone',
+  // Esports leagues / events
+  'cct europe','cct asia','iem ','blast premier','blast.tv','esl pro',
+  'major group stage','pro circuit','dreamhack','intel extreme masters'
 ];
 
 function escapeRegex(s) {
