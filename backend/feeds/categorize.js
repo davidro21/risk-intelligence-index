@@ -84,6 +84,33 @@ function escapeRegex(s) {
 // REJECT_KEYWORDS (which is structural: sports/entertainment), this is the
 // product team's curation knob.
 const CURATED_INCLUDE = {
+  // US Politics — policy & governance themes per the product team's second
+  // curation pass. The keyword classifier was overrun with 2028-candidate
+  // speculation and foreign mayoral races; the EXCLUDE list strips those
+  // and this INCLUDE list pulls real policy markets back into uspol.
+  uspol: [
+    // Trade and Tariff Policy
+    'tariff', 'tariffs', 'trade war', 'trump tariff', 'section 301', 'section 232',
+    // Tax Reform and Fiscal Policy
+    'tax bill', 'tax reform', 'tax cut', 'tax cuts', 'fiscal policy',
+    'corporate tax', 'estate tax', 'capital gains tax',
+    // Immigration and Policy
+    'immigration', 'border policy', 'border wall', 'asylum', 'deportation',
+    'daca', 'h-1b', 'h1b visa', 'illegal immigration', 'undocumented',
+    'sanctuary city',
+    // Political Polarization
+    'polarization', 'gerrymandering', 'voting rights act',
+    // Federal Budget and Debt
+    'debt ceiling', 'federal budget', 'budget deficit', 'national debt',
+    'continuing resolution', 'appropriations bill', 'spending bill',
+    'omnibus bill',
+    // Government Shutdown
+    'government shutdown', 'federal shutdown',
+    // Cabinet / Executive governance — aligned additions
+    'attorney general', 'cabinet pick', 'executive order',
+    'confirmation hearing', 'confirmed by senate', 'senate confirmation',
+    'speaker of the house', 'house speaker'
+  ],
   geo: [
     // Geopolitics signals not already covered by existing country/leader
     // keywords. Drives the curated geo set the user has approved for the
@@ -112,6 +139,21 @@ const CURATED_INCLUDE = {
 };
 
 const CURATED_EXCLUDE = [
+  // US-election candidate speculation — per user: "limit the amount of
+  // election topics; topics with nothing to do with US elections are also
+  // leaking through". These patterns drop individual-candidate
+  // election/nomination markets while preserving meta questions like
+  // "Who will win the next presidential election?" and "House control after
+  // 2026 Midterms".
+  'us presidential election',
+  'presidential nomination',
+  'presidential nominee',
+  'democratic presidential nominee',
+  'republican presidential nominee',
+  'vice presidency for the',
+  // Foreign / local mayoral races leaking into uspol
+  'mayoral election',
+  'mayoral race',
   // Trump meetings — per user: "We do not care about who Trump meets with".
   'will trump meet',
   'who will trump meet',
