@@ -35,7 +35,7 @@ function parseFloatSafe(s) {
   return isFinite(n) ? n : 0;
 }
 
-function normalize(m) {
+function normalize(m, eventTitle) {
   if (m.market_type !== 'binary') return null;
   if (m.status !== 'active') return null;
 
@@ -50,12 +50,14 @@ function normalize(m) {
   else return null;
   const prob = Math.round(probDollars * 1000) / 10;
 
-  // For curated INCLUDE / classify decisions, match against the event title
-  // only (m.title) — the user's curation list refers to event titles. We
-  // intentionally don't fold yes_sub_title / no_sub_title into sigText here.
-  const sigText = m.title || '';
+  // Classification uses EVENT title + market title. Kalshi multi-outcome
+  // events have a parent event title (e.g. "2028 U.S. Presidential Election
+  // winner?") while each candidate market within shares a different title
+  // (e.g. "Who will win the next presidential election?"). Curating only on
+  // market title would miss the event-level question the team curated for.
+  const sigText = ((eventTitle || '') + ' ' + (m.title || '')).trim();
   if (isRejected(sigText)) return null;
-  // Curated INCLUDE wins over EXCLUDE — same semantics as polymarket.
+  // Curated INCLUDE wins over EXCLUDE.
   const curated = matchCuratedInclude(sigText);
   let cat;
   if (curated) {
@@ -117,16 +119,25 @@ async function fetchActiveMarkets({ minVol24h = 10000, maxPagesPerCat = 3 } = {}
         if (eventTicker && seenEvents.has(eventTicker)) continue;
         if (eventTicker) seenEvents.add(eventTicker);
 
-        // Collect markets in this event that survive volume + classifier filters.
+        // Normalize all markets in this event WITHOUT per-market volume filter.
+        // For multi-outcome events (presidential nominee, party-control, etc.)
+        // volume is split across many candidates, so per-market filtering would
+        // wrongly cut out otherwise-active events. Pass the parent event title
+        // into normalize so it can be classified against the event-level
+        // question, not just each candidate market's repeated title.
         const valid = [];
         for (const m of (evt.markets || [])) {
-          const vol24 = parseFloatSafe(m.volume_24h_fp);
-          if (vol24 < minVol24h) continue;
-          const norm = normalize(m);
+          const norm = normalize(m, evt.title);
           if (norm) valid.push({ norm, raw: m });
         }
-
         if (valid.length === 0) continue;
+
+        // Apply the $10K volume floor on EVENT-TOTAL volume (sum across all
+        // surviving outcomes). Binary events: total == per-market vol, same
+        // behavior as before. Multi-outcome events: pooled volume gets a fair
+        // shot at clearing the floor.
+        const eventTotalVol = valid.reduce((s, x) => s + (x.norm.vol_24h_num || 0), 0);
+        if (eventTotalVol < minVol24h) continue;
 
         if (valid.length === 1) {
           // Binary event or single surviving outcome — emit as-is.
@@ -138,15 +149,17 @@ async function fetchActiveMarkets({ minVol24h = 10000, maxPagesPerCat = 3 } = {}
           // volumes across all outcomes, annotate name with leader.
           valid.sort((a, b) => b.norm.prob - a.norm.prob);
           const leader = valid[0];
-          const totalVol = valid.reduce((s, x) => s + (x.norm.vol_24h_num || 0), 0);
           const leaderName = (leader.raw.yes_sub_title || '').trim();
+          // Use the EVENT title (not the per-candidate market title which
+          // repeats across rows) for the deduped row's display name.
+          const displayBase = (evt.title || leader.norm.name);
           const merged = {
             ...leader.norm,
             // Stable id keyed on event_ticker — survives leader changes.
             id: 'kalshi-event-' + (eventTicker || leader.raw.ticker),
-            name: leader.norm.name + (leaderName ? ' — ' + leaderName + ' leads' : ''),
-            vol_24h_num: totalVol,
-            vol_24h: formatVolume(totalVol)
+            name: displayBase + (leaderName ? ' — ' + leaderName + ' leads' : ''),
+            vol_24h_num: eventTotalVol,
+            vol_24h: formatVolume(eventTotalVol)
           };
           out.push(merged);
         }
