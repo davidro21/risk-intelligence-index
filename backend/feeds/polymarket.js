@@ -3,7 +3,7 @@
 // classifies each market into one of the 8 canonical category IDs via
 // the shared categorize module.
 
-const { classify, isRejected, isExcluded, formatVolume } = require('./categorize');
+const { classify, matchCuratedInclude, isRejected, isExcluded, formatVolume } = require('./categorize');
 
 const GAMMA_URL = 'https://gamma-api.polymarket.com/markets';
 
@@ -33,8 +33,16 @@ function normalize(rawMarket) {
   // resolution-source boilerplate.
   const sigText = [rawMarket.question, rawMarket.slug].filter(Boolean).join(' ');
   if (isRejected(sigText)) return null;
-  if (isExcluded(sigText)) return null;
-  const cat = classify(sigText);
+  // Curated INCLUDE wins over EXCLUDE — product team can explicitly bring
+  // back items that would otherwise match a generic exclude pattern.
+  const curated = matchCuratedInclude(sigText);
+  let cat;
+  if (curated) {
+    cat = curated;
+  } else {
+    if (isExcluded(sigText)) return null;
+    cat = classify(sigText);
+  }
   if (!cat) return null;
 
   return {

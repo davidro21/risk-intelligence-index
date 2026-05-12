@@ -9,7 +9,7 @@
 // (history candlesticks, portfolio), but /events public reads need no
 // signature.
 
-const { classify, isRejected, isExcluded, formatVolume } = require('./categorize');
+const { classify, matchCuratedInclude, isRejected, isExcluded, formatVolume } = require('./categorize');
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2';
 
@@ -50,11 +50,20 @@ function normalize(m) {
   else return null;
   const prob = Math.round(probDollars * 1000) / 10;
 
-  const sigText = [m.title, m.yes_sub_title, m.no_sub_title]
-    .filter(Boolean).join(' ');
+  // For curated INCLUDE / classify decisions, match against the event title
+  // only (m.title) — the user's curation list refers to event titles. We
+  // intentionally don't fold yes_sub_title / no_sub_title into sigText here.
+  const sigText = m.title || '';
   if (isRejected(sigText)) return null;
-  if (isExcluded(sigText)) return null;
-  const cat = classify(sigText);
+  // Curated INCLUDE wins over EXCLUDE — same semantics as polymarket.
+  const curated = matchCuratedInclude(sigText);
+  let cat;
+  if (curated) {
+    cat = curated;
+  } else {
+    if (isExcluded(sigText)) return null;
+    cat = classify(sigText);
+  }
   if (!cat) return null;
 
   const vol24 = parseFloatSafe(m.volume_24h_fp);
@@ -90,7 +99,7 @@ async function fetchEventsPage(category, cursor, retries = 2) {
 }
 
 async function fetchActiveMarkets({ minVol24h = 10000, maxPagesPerCat = 3 } = {}) {
-  const seen = new Set();
+  const seenEvents = new Set();
   const out = [];
   for (const cat of TARGET_CATS) {
     let cursor = null;
@@ -104,13 +113,42 @@ async function fetchActiveMarkets({ minVol24h = 10000, maxPagesPerCat = 3 } = {}
       }
       const events = j.events || [];
       for (const evt of events) {
+        const eventTicker = evt.event_ticker || '';
+        if (eventTicker && seenEvents.has(eventTicker)) continue;
+        if (eventTicker) seenEvents.add(eventTicker);
+
+        // Collect markets in this event that survive volume + classifier filters.
+        const valid = [];
         for (const m of (evt.markets || [])) {
-          if (seen.has(m.ticker)) continue;
-          seen.add(m.ticker);
           const vol24 = parseFloatSafe(m.volume_24h_fp);
           if (vol24 < minVol24h) continue;
           const norm = normalize(m);
-          if (norm) out.push(norm);
+          if (norm) valid.push({ norm, raw: m });
+        }
+
+        if (valid.length === 0) continue;
+
+        if (valid.length === 1) {
+          // Binary event or single surviving outcome — emit as-is.
+          out.push(valid[0].norm);
+        } else {
+          // Multi-outcome event: dedupe to ONE row to avoid the
+          // duplicate-title problem ("Who will win the next presidential
+          // election?" × 5). Pick the highest-prob outcome as leader, sum
+          // volumes across all outcomes, annotate name with leader.
+          valid.sort((a, b) => b.norm.prob - a.norm.prob);
+          const leader = valid[0];
+          const totalVol = valid.reduce((s, x) => s + (x.norm.vol_24h_num || 0), 0);
+          const leaderName = (leader.raw.yes_sub_title || '').trim();
+          const merged = {
+            ...leader.norm,
+            // Stable id keyed on event_ticker — survives leader changes.
+            id: 'kalshi-event-' + (eventTicker || leader.raw.ticker),
+            name: leader.norm.name + (leaderName ? ' — ' + leaderName + ' leads' : ''),
+            vol_24h_num: totalVol,
+            vol_24h: formatVolume(totalVol)
+          };
+          out.push(merged);
         }
       }
       if (!j.cursor) break;

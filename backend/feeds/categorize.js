@@ -106,10 +106,25 @@ const CURATED_INCLUDE = {
     'omnibus bill',
     // Government Shutdown
     'government shutdown', 'federal shutdown',
-    // Cabinet / Executive governance — aligned additions
+    // Cabinet / Executive governance
     'attorney general', 'cabinet pick', 'executive order',
     'confirmation hearing', 'confirmed by senate', 'senate confirmation',
-    'speaker of the house', 'house speaker'
+    'speaker of the house', 'house speaker',
+    // Additional themes from second curation pass:
+    'kash patel', 'fbi director',
+    'approval rating', 'trump approval',
+    'reconciliation bill',
+    'nuclear option',
+    'blue wave',
+    '25th amendment',
+    '2026 midterms',
+    'balance of power',
+    'redistrict', 'redistricting',
+    // Regex patterns — precisely match Kalshi event-style titles without
+    // catching Polymarket per-candidate "Will [X] be the nominee" phrasing.
+    /^\d{4}\s+(republican|democratic|us|u\.s\.)\s+presidential\s+(nominee|election)/i,
+    /^which\s+(party|states)\s+will\s+(win|redistrict)/i,
+    /midterms?:\s*congress/i
   ],
   geo: [
     // Geopolitics signals not already covered by existing country/leader
@@ -185,26 +200,44 @@ const CURATED_EXCLUDE = [
   'modi visit'
 ];
 
+// Pattern compiler: accepts strings (wrapped with \b...\b) or raw RegExp
+// (used as-is, supports anchors and lookarounds for precise matching).
+function compilePattern(p) {
+  if (p instanceof RegExp) return p;
+  return new RegExp('\\b' + escapeRegex(String(p).trim()) + '\\b', 'i');
+}
+
 const KEYWORD_REGEX = {};
 for (const cat of CAT_PRIORITY) {
-  KEYWORD_REGEX[cat] = (KEYWORDS[cat] || []).map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+  KEYWORD_REGEX[cat] = (KEYWORDS[cat] || []).map(compilePattern);
 }
-const REJECT_REGEX = REJECT_KEYWORDS.map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+const REJECT_REGEX = REJECT_KEYWORDS.map(compilePattern);
 const CURATED_INCLUDE_REGEX = {};
 for (const cat of Object.keys(CURATED_INCLUDE)) {
-  CURATED_INCLUDE_REGEX[cat] = CURATED_INCLUDE[cat].map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+  CURATED_INCLUDE_REGEX[cat] = CURATED_INCLUDE[cat].map(compilePattern);
 }
-const CURATED_EXCLUDE_REGEX = CURATED_EXCLUDE.map(kw => new RegExp('\\b' + escapeRegex(kw.trim()) + '\\b', 'i'));
+const CURATED_EXCLUDE_REGEX = CURATED_EXCLUDE.map(compilePattern);
 
-function classify(text) {
+// Curated INCLUDE check, exported separately so feed normalizers can wire
+// it BEFORE isExcluded — letting product-team includes override the team's
+// own excludes when a title matches both (e.g. "2028 Republican presidential
+// nominee" — Kalshi event we want — vs. "Will Marco Rubio be the Republican
+// Presidential nominee" — Polymarket candidate noise we don't).
+function matchCuratedInclude(text) {
   const t = (text || '').toLowerCase();
-  // 1. Curated include — explicit cat assignment by the product team.
   for (const cat of Object.keys(CURATED_INCLUDE_REGEX)) {
     for (const re of CURATED_INCLUDE_REGEX[cat]) {
       if (re.test(t)) return cat;
     }
   }
-  // 2. Keyword classifier — fallback for anything not in a curated list.
+  return null;
+}
+
+function classify(text) {
+  const t = (text || '').toLowerCase();
+  // Keyword classifier — used as fallback when matchCuratedInclude returns
+  // null. Curated check is no longer inside this function; feed normalizers
+  // call them in the correct order (see polymarket.js / kalshi.js normalize).
   for (const cat of CAT_PRIORITY) {
     for (const re of KEYWORD_REGEX[cat]) {
       if (re.test(t)) return cat;
@@ -215,7 +248,7 @@ function classify(text) {
 
 // Curated exclude — kept separate from isRejected() (which handles
 // sports/entertainment structurally). Markets matching either function are
-// dropped before they hit /api/markets.
+// dropped, but matchCuratedInclude runs first and can override.
 function isExcluded(text) {
   const t = (text || '').toLowerCase();
   return CURATED_EXCLUDE_REGEX.some(re => re.test(t));
@@ -246,4 +279,4 @@ function formatVolume(num) {
   return '$' + Math.round(num);
 }
 
-module.exports = { classify, classifyMulti, isRejected, isExcluded, formatVolume, CAT_PRIORITY };
+module.exports = { classify, classifyMulti, matchCuratedInclude, isRejected, isExcluded, formatVolume, CAT_PRIORITY };
