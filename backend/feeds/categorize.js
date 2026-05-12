@@ -151,6 +151,8 @@ const CURATED_EXCLUDE = [
   'democratic presidential nominee',
   'republican presidential nominee',
   'vice presidency for the',
+  'nominee for the presidency',          // Kalshi phrasing variant
+  'next presidential election',          // Kalshi multi-outcome event: 5× duplicate rows
   // Foreign / local mayoral races leaking into uspol
   'mayoral election',
   'mayoral race',
