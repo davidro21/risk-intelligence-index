@@ -1,0 +1,201 @@
+topic,category,pattern,pattern_type,notes
+"US Military Strikes against Iran",geo,"(us|american|u\.s\.).*(strike|attack|military action|bomb|airstrike).*iran|iran.*struck by\s+(us|america)",regex,"actor + verb + target"
+"US-Iran Ceasefire and Peace Deal",geo,"(us|usa|america).*iran.*(ceasefire|peace deal|peace agreement|diplomatic)|iran.*(us|usa).*(ceasefire|peace deal|peace agreement)",regex,
+"Khamenei Out as Supreme Leader",geo,khamenei,keyword,"single-entity anchor"
+"Iranian Regime Collapse",geo,"iran(ian)?\s+(regime|government|leadership).*(fall|collapse|change|topple)|fall\s+of.*iran",regex,
+"Strait of Hormuz Normalization",geo,hormuz,keyword,"single-entity anchor"
+"Israel-Hezbollah Ceasefire Extension",geo,"(israel.*hezbollah|hezbollah.*israel).*(ceasefire|truce)",regex,
+"Israel Withdrawal from Lebanon",geo,"israel(i)?.*(withdraw|leave|pull out|exit).*lebanon|lebanon.*israel(i)?.*(withdraw|exit)",regex,
+"US Seizure of Enriched Uranium",geo,"(us|usa|american).*(seiz|obtain|capture|takes).*enriched\s+uranium|enriched\s+uranium.*(seized|obtained|captured)",regex,
+"Trump-Xi Beijing Summit",geo,"(trump.*xi|xi.*trump).*(beijing|summit|meet|meeting)",regex,
+"China Invasion of Taiwan",geo,"china.*(invade|invasion|invading).*taiwan|taiwan.*(invaded|invasion).*china",regex,
+"Tamil Nadu Legislative Assembly Election",geo,tamil nadu,keyword,
+"2026 Seoul Mayoral Election",geo,"seoul.*mayor|2026.*seoul.*election",regex,"overrides existing mayoral-race exclude"
+"Keir Starmer Ouster",geo,starmer,keyword,"single-entity anchor"
+"UK Local Elections (Most Seats)",geo,"(uk|united kingdom|british).*local\s+election|2026.*uk.*local",regex,
+"Next French Presidential Election",geo,"(2027|next)?.*french\s+presidential\s+election|france.*presidential.*election",regex,
+"Ukraine-Russia Peace Deal",geo,"(ukraine\s*[x×]?\s*russia|russia\s*[x×]?\s*ukraine).*(peace deal|peace agreement|ceasefire|truce)",regex,
+"Brazil Presidential Election",geo,"brazil(ian)?.*(presidential|president).*election|2026.*brazil.*election",regex,
+"Colombia Presidential Election",geo,"colombia(n)?.*(presidential|president).*election|2026.*colombia.*election",regex,
+"Venezuela Leadership",geo,"venezuela(n)?\s+(leader|leadership|president|regime)|maduro\s+(out|removed|resign)",regex,
+"Cuba Regime Change",geo,"cuba(n)?.*(regime|government|leadership).*change|cuba.*(diaz-canel|raul castro)",regex,"typo fix: was Cube"
+"Bolivia Election Runoff",geo,"bolivia(n)?.*(election|runoff|presidential)",regex,
+"Peru Election Specifics",geo,"peru(vian)?.*(election|presidential)",regex,
+"Vladimir Putin's Tenure",geo,"putin.*(out|removed|tenure|resign|leave|step down)",regex,
+"Russian Military Expansion",geo,"russia(n)?\s+(military|army|forces|troops).*(expand|advance|capture|seize|deploy)|russian\s+(invasion|expansion)",regex,
+"Ukrainian Territorial Control",geo,"ukrain(e|ian).*(recapture|territory|territorial|control of|capture|liberate)|russia.*capture.*ukrain",regex,
+"New Zealand Prime Minister Exit",geo,"new zealand.*(pm|prime minister).*(out|exit|resign|step down)",regex,
+"French Political Shift",geo,"france.*(political|government|election)|french.*(election|government|prime minister|snap election)",regex,
+"US-Mexico Military Risk",geo,"(us|usa).*mexico.*(military|invasion|strike|cartel|cross-border)|mexico.*(us|usa).*military",regex,
+"Global Nuclear Risk",geo,"nuclear\s+(strike|attack|war|weapon|risk|escalation|exchange)|first\s+nuclear|nuclear\s+detonation",regex,
+"Expansion of US Tariffs",geo,"(us|usa|american|trump)\s+tariff.*(expand|new|impose|increase)|tariff\s+expansion",regex,"actor + scope; overlaps with Tariffs in legal but tied to international relations"
+"Hungary 2026 General Election",geo,"hungary.*(election|2026)|orb[aá]n.*(out|election|step down)",regex,
+"US Tariff Rate on China",geo,"tariff.*china|china.*tariff|trump.*tariff.*china",regex,"china-tariff routes here even with legal Tariffs pattern (geo iterates first)"
+"AI Policy and Safety Standards",geo,"(international|global|un|eu)\s+ai\s+(policy|regulation|treaty|standard)|ai.*(treaty|accord|geneva)",regex,"international AI governance; cyber has frontier model risk"
+"Philippines House Elections",geo,"philippines?.*(house|legislative|election)",regex,
+"2026 Nobel Peace Prize",geo,"2026.*nobel\s+peace\s+prize|nobel\s+peace.*2026",regex,
+"Next Prime Minister of Israel (Successor)",geo,"(next|new)\s+prime minister.*israel|israel(i)?.*(prime minister|pm)\s+(out|successor)",regex,
+"UK General Election - Overall Majority",geo,"uk\s+general\s+election|united kingdom.*general\s+election|britain.*general\s+election",regex,
+"2028 US Democratic Presidential Nominee",uspol,"2028\s+(us|u\.s\.)?\s*democrat(ic)?\s+presidential\s+nominee",regex,"event-anchored — matches Kalshi event titles"
+"2028 US Republican Presidential Nominee",uspol,"2028\s+(us|u\.s\.)?\s*republican\s+presidential\s+nominee",regex,
+"2028 US Presidential Election Winner",uspol,"2028\s+(us|u\.s\.)?\s*presidential\s+election\s+(winner|outcome)",regex,
+"2026 Midterm House Control",uspol,"2026.*midterm.*(house\s+control|congress\s+control|balance of power)|midterms?:\s*congress",regex,
+"Kash Patel as FBI Director",uspol,"kash patel|patel.*fbi\s+director",regex,
+"SAVE Act (Legislation/Passage)",uspol,save\s+act,keyword,"deduped — was listed twice"
+"Trump Impeachment",uspol,"trump.*impeach|impeach.*trump|25th\s+amendment",regex,
+"Reconciliation Bill Passage",uspol,reconciliation bill,keyword,
+"Federal Gas Tax Suspension",uspol,"federal gas tax|gas tax (suspension|holiday|cut)",regex,
+"Crypto Market Structure Legislation",uspol,"crypto.*(market structure|legislation)|clarity act|market structure bill",regex,
+"Next US Attorney General",uspol,"(next|new)\s+(us\s+)?attorney\s+general|trump.*attorney general\s+pick",regex,
+"Cabinet Exit and Impeachment",uspol,"cabinet.*(exit|resign|fired|removed)|trump.*cabinet.*(change|exit)",regex,
+"TikTok Ban",uspol,"tiktok.*(ban|banned|divest|sell|forced sale)|(ban|banned|forced sale).*tiktok",regex,"overrides existing tech routing"
+"US Presidential Pardons",uspol,"(presidential\s+pardon|trump.*pardon|biden.*pardon)|pardons\s+by\s+trump",regex,"specific-to-president; generic Pardons stays in legal"
+"Congressional Stock Trading Ban",uspol,"congress(ional)?\s+stock\s+(trading|ban)|stock\s+trading\s+ban.*congress",regex,
+"US Tariff Stimulus Checks",uspol,"tariff\s+(stimulus|rebate|check|dividend)",regex,
+"California Governor 2026",uspol,"california\s+governor",keyword,"re-included specifically; broader candidate noise still excluded"
+"US Anti-Cartel Operations",uspol,"(us|usa|american)?\s*anti.?cartel|cartel.*(operation|strike|designate)",regex,
+"Epstein Investigative Disclosures",uspol,"epstein.*(file|disclosure|document|release)",regex,
+"US Government Confirmation of Alien Life",uspol,"(us\s+government|government|congress).*(alien|extraterrestrial).*(confirm|disclos)|alien life\s+confirm",regex,
+"Trump Declassification of UFO Files",uspol,"trump.*(ufo|uap|alien).*declass|(ufo|uap)\s+(file|disclos|declass)",regex,
+"CLARITY Act Passage",uspol,clarity act,keyword,
+"State Redistricting before Midterms",uspol,"redistrict|gerrymander.*(state|congressional|map)",regex,
+"Weekly Executive Orders",uspol,"(weekly|trump).*executive order|executive order.*week",regex,
+"Federal Reserve Chair Confirmation (Kevin Warsh)",fin,"warsh|fed.*chair.*(confirm|nominate|nomination|hearing|vote)",regex,"consolidated 3 Warsh entries"
+"Federal Reserve Interest Rate Decisions",fin,"fed.*(rate\s+(cut|hike|decision|change)|interest\s+rate|fomc)|federal reserve.*rate",regex,
+"Total Number of 2026 Fed Rate Cuts",fin,"(total|how many|number of).*2026.*fed.*(rate\s+cut|cut)|2026.*fed\s+rate\s+cut",regex,
+"US Recession in 2026",fin,"(us\s+)?recession.*2026|2026.*(us\s+)?recession",regex,
+"May 2026 Core CPI",fin,"may\s+2026.*cpi|2026.*(may|q2).*cpi|cpi.*may\s+2026|core\s+cpi.*may",regex,
+"US Bank Failures",fin,"(us\s+)?bank\s+(failure|collapse|run)|fdic.*(seize|takeover)",regex,
+"WTI Crude Oil Price Targets",fin,"wti|crude oil.*(price|target|hit|reach)|oil.*\$\d+|(brent|crude)\s+\$",regex,
+"Gold Price Thresholds ($5,500+)",fin,"gold\s+price|gold\s+(hit|reach|above|breach).*\$\d",regex,
+"Silver Price Thresholds",fin,"silver\s+price|silver\s+(hit|reach|above|breach)",regex,
+"New US Trade Deals",fin,"(us|america).*(new\s+)?(trade\s+deal|trade\s+agreement|free\s+trade)\s+with|new\s+trade\s+deal",regex,
+"World's Largest Company (by Market Cap)",fin,"largest\s+company.*market\s+cap|world.*largest.*company.*by\s+(market|cap)",regex,
+"SpaceX IPO Valuation",fin,"spacex.*ipo|spacex.*public\s+(ticker|offering)|spacex.*go\s+public",regex,
+"Discord IPO Announcement",fin,"discord.*ipo|discord.*public\s+(offering|listing)",regex,
+"OpenAI IPO Timeline",fin,"openai.*ipo|openai.*public\s+(offering|listing)|openai.*go\s+public",regex,
+"Quarterly Earnings Performance",fin,"(quarterly|q[1-4])\s+earning|earnings\s+(beat|miss|report)|earnings\s+call",regex,
+"Tesla Q2 Deliveries",fin,"tesla\s+q[1234]\s+deliver|tesla.*deliver.*q[1234]|tesla.*deliver.*\d{4}",regex,
+"MicroStrategy Bitcoin Sales",fin,microstrategy,keyword,"single-entity anchor catches all MSTR markets"
+"AI Model Rankings",fin,"(best|top)\s+ai\s+model|ai\s+model\s+(rank|ranking|leader)|ranked\s+ai\s+model",regex,
+"Bank of Japan (BoJ) Rate Hikes",fin,"bank of japan|\bboj\b|japan.*rate.*(hike|cut|decision)",regex,
+"Bank of Brazil Rate Decisions / Copom Meeting",fin,"bank of brazil|copom|brazil.*(rate|monetary policy|selic)",regex,"deduped"
+"Mexico's Nominal GDP 2026",fin,"mexico.*gdp.*2026|2026.*mexico.*gdp|mexico.*nominal\s+gdp",regex,
+"European Central Bank (ECB) Decisions",fin,"\becb\b|european central bank|ecb.*(rate|decision|meeting)",regex,
+"10-Year Treasury Yield Targets",fin,"10.?year\s+treasury|treasury\s+yield|10y\s+yield",regex,
+"Bitcoin $100,000 Milestone",fin,"bitcoin.*(hit|reach|above|breach|cross).*\$?100[,k]?000|btc.*100[,k]",regex,
+"MegaETH Launch Valuation",fin,"megaeth|mega\s+eth",regex,
+"Artificial Intelligence (AI) — broad",tech,"(openai|anthropic|claude|gpt|chatgpt|gemini|llm|agi|grok|deepseek)",regex,"covered by existing tech keywords; CSV reaffirms coverage"
+"Space and Aerospace",tech,"\bnasa\b|aerospace|orbital launch|(rocket|spacecraft)\s+(launch|test)",regex,
+"Big Tech",tech,"(google|alphabet|meta\s+(platforms|inc)|microsoft|amazon|apple|nvidia)\s+(stock|earnings|antitrust|launch)",regex,"narrowed to avoid generic name matches"
+"Digital Assets",tech,"digital asset|stablecoin|tokenization|cbdc",regex,
+"Starship Success",tech,"starship.*(launch|success|test)|spacex.*starship",regex,
+"Semiconductors",tech,"semiconductor|tsmc|asml|chip\s+(fab|export|ban)",regex,
+"Data Centers",tech,"data center|hyperscaler|(aws|gcp|azure).*expansion|stargate",regex,
+"Quantum Computing",tech,"quantum\s+(computing|computer|chip|supremacy)",regex,
+"Agentic AI",tech,"agentic ai|ai agent|autonomous agent|agent-based\s+ai",regex,
+"Robotics",tech,"robotics|humanoid\s+robot|robot\s+(deploy|launch|sales)|optimus",regex,
+"Biotech",tech,"biotech|biotechnology|gene\s+therapy|crispr",regex,
+"Software",tech,"software.*(release|launch|ipo|acquisition)|saas.*(growth|launch)",regex,"narrowed to avoid matching every 'software' mention"
+"Drones",tech,"\bdrone|uav|unmanned aerial",regex,"single home per decision; removed from safety"
+"Tech Layoffs",tech,"tech\s+layoff|(google|amazon|meta|microsoft|nvidia|apple).*layoff",regex,
+"Disruptive Technology",tech,"disruptive\s+technolog|tech(nology)?\s+disruption|breakthrough\s+technology",regex,"renamed from Disruptions"
+"Surveillance Technology",tech,"surveillance\s+(tech|technology|tool|software)|spyware",regex,"split from safety's Surveillance State"
+"SpaceX IPO Valuation Surpassing $1.75 Trillion",tech,"spacex.*(1\.75|trillion).*ipo|spacex\s+ipo.*\$?1\.75",regex,"moved from cyber per decision"
+"ZachXBT Investigative Cycle",cyber,zachxbt,keyword,
+"AI Safety and Frontier Model Risk",cyber,"ai\s+safety|frontier\s+model.*(risk|safety|pause|moratorium)|model\s+capability\s+(risk|threat)",regex,"primary AI safety route; Safety cat's AI Safety also points here"
+"Visa Tokenization and Data Breach",cyber,"visa.*(tokeniz|breach|hack|leak)",regex,
+"CrowdStrike Security Incidents",cyber,crowdstrike,keyword,
+"Attribution and Bridge Exploits",cyber,"(bridge\s+exploit|cross.?chain\s+exploit|crypto\s+bridge\s+hack)|attribution.*(hack|breach)",regex,
+"Polymarket API Data Breach Confirmation",cyber,"polymarket.*(breach|hack|leak)|xorcat",regex,
+"US Cyber Strike Against Iranian Sites",cyber,"(us|usa).*cyber.*(strike|attack|operation).*iran|iran.*cyber.*(targeted|attack)",regex,
+"US Banking Sector Cyber Risk Monitoring",cyber,"(us\s+)?bank(ing)?.*(cyber|sector\s+risk|cyber\s+attack)|cyber.*bank(ing)?\s+(sector|attack)",regex,
+"AI Frontier Model Pauses",cyber,"frontier.*ai.*(pause|moratorium|halt)|moratorium.*(ai|frontier model)|ai.*(pause|moratorium).*release",regex,
+"Agentic AI Swarms",cyber,"agentic\s+ai\s+swarm|ai\s+swarm|multi-agent\s+(attack|swarm)",regex,"typo fix: was Agnetic AI Swarems"
+"Jailbreak Success",cyber,"jailbreak.*(ai|llm|model|gpt|claude)|(ai|llm|model)\s+jailbreak",regex,
+"Phishing Resilience",cyber,"phishing.*(attack|resilien|campaign|breach)|spear.?phishing",regex,
+"Exploit Industrialization",cyber,"exploit\s+(industrializ|marketplace|broker)|zero.?day.*(market|sale)",regex,
+"State-Sponsored Cyber Attacks",cyber,"state.?sponsored.*cyber|nation.?state.*(hack|cyber|attack)|apt\s+group",regex,
+"Governance-First Security",cyber,"governance.first\s+security|security\s+governance.*(framework|policy)",regex,
+"AI-Driven Cyberattacks",cyber,"ai.?driven.*(cyber|attack|hack)|ai\s+(cyber|hack|attack)|ai.?powered\s+attack",regex,
+"Antitrust",legal,antitrust,keyword,"already in keywords"
+"Crypto Law",legal,"crypto\s+(law|regulation|legislation)|crypto.*market\s+structure|stablecoin\s+(law|regulation)",regex,
+"Platform Liability",legal,"platform\s+liability|section\s+230\s+(reform|repeal)",regex,
+"Section 230",legal,section\s+230,regex,
+"Immigration",legal,"immigration\s+(law|reform|policy|bill|legislation)|border\s+(wall|bill|policy|legislation|crisis)|asylum\s+(policy|seeker|law)|h-?1b|daca|sanctuary\s+city",regex,"narrowed: deportation actions go to Mass Deportation in society"
+"Settlements",legal,"(legal\s+)?settlement|class\s+action.*settle|settle\s+(lawsuit|case)",regex,
+"Prediction Markets Litigation",legal,"prediction\s+market.*(litigation|lawsuit|sue)|kalshi.*(lawsuit|sue)|polymarket.*(sue|lawsuit)",regex,
+"SCOTUS Decisions",legal,"scotus|supreme court.*(decision|ruling|case|hear|grant)",regex,
+"Gambling Markets",legal,"gambling.*(legal|law|regulation)|sports\s+betting.*(regulation|law)",regex,
+"DOJ and Attorney General Cases",legal,"\bdoj\b.*(case|investigation|charge)|department of justice|attorney general.*(case|investigation)",regex,
+"Tariffs",legal,"tariff|trade\s+war|section\s+(232|301)",regex,"moved from uspol per decision"
+"Investigations",legal,"(federal|doj|fbi).*investigation|investigation.*(launched|opens|charges)",regex,
+"Verdicts",legal,"verdict|trial.*(verdict|outcome)|jury\s+(finds|verdict)",regex,
+"Legislation",legal,"legislation\s+pass|congress\s+pass(es)?|bill\s+passes|senate\s+passes",regex,
+"Corruption",legal,"corruption.*(charge|case|conviction|investigation|scandal)",regex,
+"Fraud",legal,"fraud.*(charge|conviction|case|scheme|guilty)",regex,
+"Bribery",legal,"bribery|bribe.*(case|charge|conviction)",regex,
+"Court Decisions",legal,"court.*(decision|ruling|verdict)|federal\s+judge.*ruling|appeals court\s+rules",regex,
+"Pardons (general)",legal,"\bpardon(ed|s)?\b|grant.*pardon",regex,"generic; US Presidential Pardons stays in uspol"
+"Clemency",legal,"clemency|grant\s+clemency|commute\s+sentence",regex,
+"Privacy",legal,"(data\s+|user\s+)?privacy.*(law|regulation|breach|act)",regex,
+"Data Privacy",legal,"data\s+privacy|gdpr|ccpa|data\s+protection",regex,"renamed from Data"
+"AI Safety",safety,"\bai\s+safety|safe\s+ai|model\s+safety",regex,"primary route is cyber's Frontier Model Risk; this is a backup marker"
+"Autonomous Defense",safety,"autonomous\s+(defense|weapon|drone|system|warfare)",regex,
+"Surveillance State",safety,"surveillance\s+(state|program|operation)|mass\s+surveillance",regex,"split from tech's Surveillance Technology"
+"Energy Security",safety,"energy\s+security|grid.*(attack|threat|security)|power\s+grid.*(attack|down)",regex,
+"Kinetic Threats",safety,"kinetic\s+(threat|attack|strike|action)",regex,
+"2026 World Cup Security Threats",safety,"world cup.*(security|threat|attack|terror|incident)",regex,"REJECT_WHITELIST applied — 'world cup security/threat/attack' bypasses sports reject"
+"Mass Violence",safety,"mass\s+(violence|shooting|casualty)|active\s+shooter|spree\s+killing",regex,
+"Assassinations",safety,"assassinat|assassin\s+attempt",regex,
+"Targeted Attack",safety,"targeted\s+attack|target.*(attack|threat|hit)|(soft|hard)\s+target",regex,"renamed from 'Target'"
+"Demonstrations",safety,"(mass\s+)?demonstration|protest\s+(against|escalate|turns violent)",regex,
+"Riots",safety,riots?,regex,"Civil Unrest moved to Society per decision"
+"Active Shooter",safety,"active\s+shooter|school\s+shooting|mass\s+shooting",regex,
+"Executive Protection",safety,"executive\s+protection|threat.*(president|trump|prime minister|leader)|protect.*(president|prime minister)",regex,
+"Guns and Weapons",safety,"gun\s+(control|law|legislation)|weapon\s+(ban|control|legislation)|2nd amendment",regex,
+"Infrastructure Attacks",safety,"infrastructure\s+(attack|target|threat|sabotage|outage)|critical\s+infrastructure",regex,
+"Terrorism",safety,"terror|terrorism|terrorist\s+(attack|incident|plot)",regex,
+"Arrests",safety,"arrest.*(suspect|attack|terror|cell|plot)",regex,
+"GLP-1",medical,"glp.?1|ozempic|wegovy|mounjaro|zepbound",regex,
+"Pandemic Risk",medical,"pandemic|outbreak.*(declare|spread)",regex,
+"Biotech and Pharma",medical,"(pfizer|moderna|merck|eli lilly|novo nordisk|jnj|johnson)\s+(stock|earnings|approval|trial)|pharma\s+(deal|merger)",regex,
+"Medicare and Medicaid",medical,"medicare|medicaid|cms\s+(rule|decision|cut)",regex,
+"H5N1",medical,"h5n1|bird flu|avian\s+(flu|influenza)",regex,
+"Public Health Emergencies",medical,"public\s+health\s+emergency|phe\s+declar|cdc.*emergency",regex,
+"World Health Organization",medical,"world health organization|\bwho\s+(declare|warn|recommend)",regex,
+"Hantavirus",medical,"hantavirus|andes\s+virus",regex,
+"Infectious Disease",medical,"infectious\s+disease|disease\s+outbreak|epidemic",regex,
+"Merck (Keytruda) Bladder Cancer",medical,"keytruda|merck.*bladder|pembrolizumab",regex,
+"Concept Therapeutics (Relacorilant)",medical,"relacorilant|concept therapeutics|cortexyme",regex,
+"ImmunityBio (Anktiva)",medical,"immunitybio|anktiva|nogapendekin",regex,
+"Opioids",medical,"opioid|fentanyl|opioid crisis",regex,"typo fix: was Opiods"
+"Mental Health",medical,"mental health.*(crisis|policy|fund)|psychiatric|suicide.*(rate|prevention)",regex,
+"Addiction",medical,"addiction\s+(crisis|treatment|epidemic)|substance abuse",regex,
+"Medical Breakthroughs",medical,"medical\s+breakthrough|fda\s+(approval|approves)|first.*treatment.*approve",regex,
+"AI in Health Technology",medical,"ai\s+(in|for)\s+(health|medicine|medical|diagnos)|medical\s+ai",regex,
+"Medical Equipment and Infrastructure",medical,"medical\s+(equipment|device|infrastructure)|hospital\s+(capacity|infrastructure)",regex,"typo fix: was Infrastucture"
+"Health Plan Pricing",medical,"health\s+plan.*(pricing|premium|cost)|insurance\s+premium",regex,
+"Health Funding",medical,"health\s+funding|nih\s+(fund|budget|cut)|hhs\s+budget",regex,
+"Drug Prices",medical,"drug\s+price|prescription.*price|medication\s+cost",regex,
+"Vaccines and Immunizations",medical,"vaccin|immuniz|booster shot",regex,
+"Andes Virus",medical,andes virus,keyword,
+"Cancer",medical,"cancer\s+(treatment|drug|trial|cure|breakthrough)|oncology",regex,
+"AI in Medicine",medical,"ai\s+in\s+medicine|medical\s+ai|ai.?diagnos",regex,"low_volume_watch: log if any $50K+ market matches"
+"PDUFA",medical,"pdufa|prescription drug user fee",regex,
+"Alzheimer's",medical,"alzheimer|dementia\s+(drug|treatment|trial)",regex,
+"Health Policy",medical,"health\s+policy|aca\s+(repeal|change)|affordable care act",regex,
+"Climate Change",environment,"climate change|global warming|paris (agreement|accord)|net zero",regex,"renamed from Climate Milestones"
+"Carbon Infrastructure",environment,"carbon\s+(capture|infrastructure|tax|credit)|ccus",regex,
+"Electric Vehicle Market and Adoption",environment,"electric vehicle|\bev\s+(market|sales|adoption)|tesla.*deliver",regex,
+"Climate Regulation",environment,"climate\s+(regulation|policy|rule)|epa\s+(rule|emission)",regex,
+"Emissions Regulation",environment,"emissions?\s+(regulation|standard|cap|target)|tailpipe\s+rule",regex,"typo fix: was Emmissions"
+"ESG Investing",environment,"\besg\s+(investing|fund|disclosure)|sustainable\s+investing",regex,
+"Birthright Citizenship",society,"birthright\s+citizenship|14th amendment.*citizen|jus\s+soli",regex,
+"Higher Education and Academia",society,"higher\s+education|university\s+(funding|policy|scandal)|college\s+(funding|admissions)|academia",regex,
+"AI in Higher Education",society,"ai\s+(in|at)\s+(higher\s+ed|university|college|academia)|university.*ai\s+policy",regex,"low_volume_watch: log if any $50K+ market matches"
+"Mass Deportation",society,"mass\s+deportation|deportation\s+(policy|operation|raid|target|push)|ice\s+raid|deport\s+\d|trump.*deport|will.*deport",regex,
+"Major US Protests",society,"(us|american)\s+protest|protest.*(washington|capitol)|major\s+us\s+protest",regex,
+"Global Protests",society,"global\s+protest|protest.*(spread|worldwide)|civil\s+disobedience",regex,
+"Civil Unrest",society,"civil\s+unrest|public\s+(uprising|disorder)|unrest.*spread",regex,"moved from safety per decision"
+"Global Famine, Hunger and Humanitarian Crisis",society,"famine|humanitarian\s+crisis|global\s+hunger|food\s+insecurity",regex,"typo fix: was Humanitatian"

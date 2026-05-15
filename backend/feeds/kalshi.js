@@ -9,7 +9,7 @@
 // (history candlesticks, portfolio), but /events public reads need no
 // signature.
 
-const { classify, matchCuratedInclude, isRejected, isExcluded, formatVolume } = require('./categorize');
+const { classify, matchCuratedInclude, isRejected, isExcluded, formatVolume, checkLowVolumeWatch } = require('./categorize');
 
 const KALSHI_BASE = 'https://api.elections.kalshi.com/trade-api/v2';
 
@@ -118,6 +118,12 @@ async function fetchActiveMarkets({ minVol24h = 10000, maxPagesPerCat = 3 } = {}
         const eventTicker = evt.event_ticker || '';
         if (eventTicker && seenEvents.has(eventTicker)) continue;
         if (eventTicker) seenEvents.add(eventTicker);
+
+        // Watch logger: fire on the EVENT title once per event so low-volume
+        // watched topics get observed before the event-total volume filter.
+        // Sum nested-market vols for the watch reading.
+        const eventVol = (evt.markets || []).reduce((s, x) => s + (parseFloat(x.volume_24h_fp) || 0), 0);
+        checkLowVolumeWatch(evt.title, eventVol, 'kalshi');
 
         // Normalize all markets in this event WITHOUT per-market volume filter.
         // For multi-outcome events (presidential nominee, party-control, etc.)

@@ -4,16 +4,23 @@
 // matching inside "warning".
 
 // Priority order: most specific cats first. Cyber/medical/safety beat
-// broader cats. **geo is checked before uspol** so foreign politics (e.g.
-// "Brazilian presidential election", "UK local elections") classify correctly
-// even though they contain generic political words.
-const CAT_PRIORITY = ['cyber', 'medical', 'safety', 'tech', 'legal', 'fin', 'geo', 'uspol'];
+// broader cats. **society before legal** so "Mass Deportation" wins over
+// legal's "Immigration" for deportation markets. **geo before legal/fin** so
+// "Tariff rate on China" routes to geo (not legal's generic "tariff"). geo
+// stays before uspol so foreign politics (Brazilian election, UK locals)
+// classify correctly despite generic political words.
+const CAT_PRIORITY = ['cyber', 'medical', 'safety', 'tech', 'environment', 'society', 'geo', 'legal', 'fin', 'uspol'];
 
 const KEYWORDS = {
   cyber:   ['hack','breach','ransomware','cyberattack','cyber attack','malware','vulnerability','data leak','ddos','exploit','zero-day','zero day','phishing','cisa','nsa hack'],
   medical: ['pandemic','virus','outbreak','epidemic','vaccine','disease','cdc','world health organization','fda approval','fda recall','fda warning','variant','covid','h5n1','bird flu','avian flu','measles','ebola','mpox','public health','opioid','fentanyl','biosecurity','novel pathogen'],
   safety:  ['terrorism','terror attack','mass shooting','explosion','bioterrorism','chemical weapon','radiological','nuclear attack','assassination','hostage','school shooting'],
-  tech:    ['openai','anthropic','claude','gpt','chatgpt','sora','gemini','llm','agi','artificial intelligence','ai model','nvidia','semiconductor','semiconductors','gpu','tsmc','asml','tiktok','spacex','tesla','quantum computing'],
+  // 'tiktok' deliberately omitted — TikTok Ban routes to uspol per the CSV.
+  tech:    ['openai','anthropic','claude','gpt','chatgpt','sora','gemini','llm','agi','artificial intelligence','ai model','nvidia','semiconductor','semiconductors','gpu','tsmc','asml','spacex','tesla','quantum computing'],
+  // environment + society: pure curated (no keyword fallback). Empty arrays
+  // satisfy the CAT_PRIORITY loop without contributing fallback matches.
+  environment: [],
+  society: [],
   legal:   ['supreme court','scotus','indictment','antitrust','doj','sec ','ftc','lawsuit','verdict','court ruling','federal judge','disbarred','impeach'],
   fin:     ['fed','fed chair','federal reserve','interest rate','interest rates','inflation','cpi','gdp','recession','s&p','sp500','nasdaq','dow jones','stocks','bonds','treasury','bitcoin','btc','ethereum','solana','crypto','oil','wti','gold price','silver','copper','commodities','rate cut','rate hike','rates cut','microstrategy'],
   geo: [
@@ -96,84 +103,20 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// ── User-curated lists (takes priority over the keyword classifier) ─────────
+// ── User-curated lists ───────────────────────────────────────────────────────
 //
-// CURATED_INCLUDE pulls specific titles or title-fragments into a chosen cat,
-// overriding the keyword classifier. Added as the user sends curated lists
-// per category.
+// CURATED_INCLUDE is now sourced from `backend/curation.csv` via the
+// curation-loader. The CSV is the product team's source of truth — to add or
+// change a curated topic, edit the CSV and redeploy. No JavaScript edits.
 //
-// CURATED_EXCLUDE drops markets entirely regardless of cat — distinct from
-// REJECT_KEYWORDS (which is structural: sports/entertainment), this is the
-// product team's curation knob.
-const CURATED_INCLUDE = {
-  // US Politics — policy & governance themes per the product team's second
-  // curation pass. The keyword classifier was overrun with 2028-candidate
-  // speculation and foreign mayoral races; the EXCLUDE list strips those
-  // and this INCLUDE list pulls real policy markets back into uspol.
-  uspol: [
-    // Trade and Tariff Policy
-    'tariff', 'tariffs', 'trade war', 'trump tariff', 'section 301', 'section 232',
-    // Tax Reform and Fiscal Policy
-    'tax bill', 'tax reform', 'tax cut', 'tax cuts', 'fiscal policy',
-    'corporate tax', 'estate tax', 'capital gains tax',
-    // Immigration and Policy
-    'immigration', 'border policy', 'border wall', 'asylum', 'deportation',
-    'daca', 'h-1b', 'h1b visa', 'illegal immigration', 'undocumented',
-    'sanctuary city',
-    // Political Polarization
-    'polarization', 'gerrymandering', 'voting rights act',
-    // Federal Budget and Debt
-    'debt ceiling', 'federal budget', 'budget deficit', 'national debt',
-    'continuing resolution', 'appropriations bill', 'spending bill',
-    'omnibus bill',
-    // Government Shutdown
-    'government shutdown', 'federal shutdown',
-    // Cabinet / Executive governance
-    'attorney general', 'cabinet pick', 'executive order',
-    'confirmation hearing', 'confirmed by senate', 'senate confirmation',
-    'speaker of the house', 'house speaker',
-    // Additional themes from second curation pass:
-    'kash patel', 'fbi director',
-    'approval rating', 'trump approval',
-    'reconciliation bill',
-    'nuclear option',
-    'blue wave',
-    '25th amendment',
-    '2026 midterms',
-    'balance of power',
-    'redistrict', 'redistricting',
-    // Regex patterns — precisely match Kalshi event-style titles without
-    // catching Polymarket per-candidate "Will [X] be the nominee" phrasing.
-    /^\d{4}\s+(republican|democratic|us|u\.s\.)\s+presidential\s+(nominee|election)/i,
-    /^which\s+(party|states)\s+will\s+(win|redistrict)/i,
-    /midterms?:\s*congress/i
-  ],
-  geo: [
-    // Geopolitics signals not already covered by existing country/leader
-    // keywords. Drives the curated geo set the user has approved for the
-    // Monied Markets section.
-    'greenland',
-    'starmer',
-    'panama canal',
-    'panama',
-    'opec',
-    'leave opec',
-    'mohammed bin salman',
-    'bin salman',
-    'kharg',
-    'strait of hormuz',
-    'hormuz',
-    'world leaders',
-    'leaders will leave office',
-    'leaders leave office',
-    'free trade agreement with china',
-    'trade agreement with china',
-    'embassy in iran',
-    'reopen its embassy'
-  ]
-  // Other cats (uspol, fin, tech, cyber, legal, safety, medical) will be
-  // populated as the user shares their curated lists.
-};
+// CURATED_EXCLUDE remains here. It drops markets regardless of cat — distinct
+// from REJECT_KEYWORDS (structural sports/entertainment) and from the CSV
+// includes. INCLUDE still wins over EXCLUDE so the CSV can pull specific
+// titles back in (e.g. "California Governor 2026").
+//
+// REJECT_WHITELIST (also CSV-driven) is checked before REJECT_KEYWORDS so
+// targeted phrases like "World Cup security" survive the broader "world cup"
+// sports reject.
 
 const CURATED_EXCLUDE = [
   // US-election candidate speculation — per user: "limit the amount of
@@ -234,21 +177,22 @@ for (const cat of CAT_PRIORITY) {
   KEYWORD_REGEX[cat] = (KEYWORDS[cat] || []).map(compilePattern);
 }
 const REJECT_REGEX = REJECT_KEYWORDS.map(compilePattern);
-const CURATED_INCLUDE_REGEX = {};
-for (const cat of Object.keys(CURATED_INCLUDE)) {
-  CURATED_INCLUDE_REGEX[cat] = CURATED_INCLUDE[cat].map(compilePattern);
-}
 const CURATED_EXCLUDE_REGEX = CURATED_EXCLUDE.map(compilePattern);
 
-// Curated INCLUDE check, exported separately so feed normalizers can wire
-// it BEFORE isExcluded — letting product-team includes override the team's
-// own excludes when a title matches both (e.g. "2028 Republican presidential
-// nominee" — Kalshi event we want — vs. "Will Marco Rubio be the Republican
-// Presidential nominee" — Polymarket candidate noise we don't).
+// Load CSV-driven curation rules at module init.
+const curationLoader = require('./curation-loader');
+const { CURATED_INCLUDE_REGEX, LOW_VOLUME_WATCH, REJECT_WHITELIST_REGEX } = curationLoader.load();
+
+// Curated INCLUDE check. Iterates by CAT_PRIORITY so collisions between cats
+// resolve deterministically (e.g. society's "Mass Deportation" fires before
+// legal's "Immigration" because society is earlier in CAT_PRIORITY). Cats
+// absent from the CSV are skipped silently.
 function matchCuratedInclude(text) {
   const t = (text || '').toLowerCase();
-  for (const cat of Object.keys(CURATED_INCLUDE_REGEX)) {
-    for (const re of CURATED_INCLUDE_REGEX[cat]) {
+  for (const cat of CAT_PRIORITY) {
+    const patterns = CURATED_INCLUDE_REGEX[cat];
+    if (!patterns) continue;
+    for (const re of patterns) {
       if (re.test(t)) return cat;
     }
   }
@@ -291,7 +235,28 @@ function classifyMulti(text) {
 
 function isRejected(text) {
   const t = (text || '').toLowerCase();
+  // REJECT_WHITELIST takes precedence — phrases like "World Cup security
+  // threats" survive the broader "world cup" sports reject.
+  if (REJECT_WHITELIST_REGEX.some(re => re.test(t))) return false;
   return REJECT_REGEX.some(re => re.test(t));
+}
+
+// Watch logger — emits a one-line log when a market title matches a
+// low_volume_watch pattern from the CSV. Feeds call this for every market
+// they see (before the $50K filter cuts low-volume ones), so we capture
+// when a watched topic first surfaces in either platform's data.
+function checkLowVolumeWatch(title, vol24h, platform) {
+  if (!LOW_VOLUME_WATCH || LOW_VOLUME_WATCH.length === 0) return;
+  const t = (title || '').toLowerCase();
+  for (const w of LOW_VOLUME_WATCH) {
+    if (w.regex.test(t)) {
+      const crossed = (vol24h || 0) >= 50000;
+      const tag = crossed ? '[watch] ★ CROSSED $50K' : '[watch] below floor';
+      console.log(tag + ' — topic "' + w.topic + '" matched "' + title + '" on '
+                  + platform + ' (vol $' + Math.round((vol24h || 0) / 1000) + 'K)');
+      return; // only log first match per market
+    }
+  }
 }
 
 function formatVolume(num) {
@@ -301,4 +266,4 @@ function formatVolume(num) {
   return '$' + Math.round(num);
 }
 
-module.exports = { classify, classifyMulti, matchCuratedInclude, isRejected, isExcluded, formatVolume, CAT_PRIORITY };
+module.exports = { classify, classifyMulti, matchCuratedInclude, isRejected, isExcluded, formatVolume, checkLowVolumeWatch, CAT_PRIORITY };

@@ -3,7 +3,7 @@
 // classifies each market into one of the 8 canonical category IDs via
 // the shared categorize module.
 
-const { classify, matchCuratedInclude, isRejected, isExcluded, formatVolume } = require('./categorize');
+const { classify, matchCuratedInclude, isRejected, isExcluded, formatVolume, checkLowVolumeWatch } = require('./categorize');
 
 const GAMMA_URL = 'https://gamma-api.polymarket.com/markets';
 
@@ -81,6 +81,10 @@ async function fetchActiveMarkets({ minVol24h = 10000, maxPages = 5, pageSize = 
 
     let belowThreshold = false;
     for (const m of batch) {
+      // Watch logger fires for EVERY market we see — before the volume floor
+      // applies — so low_volume_watch topics get observed even when below
+      // the $50K threshold.
+      checkLowVolumeWatch(m.question || m.slug, m.volume24hr, 'polymarket');
       if ((m.volume24hr || 0) < minVol24h) {
         // Sorted desc by volume24hr — once we drop below the floor we can stop.
         belowThreshold = true;
