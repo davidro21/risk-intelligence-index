@@ -88,21 +88,29 @@ async function markStaleMarketsInactive(activeIds) {
 
 async function getActiveMarkets() {
   const r = await query(
-    `SELECT id, cat, name, platform, prob, prev_prob, vol_24h, url
+    `SELECT id, cat, name, platform, prob, prev_prob, vol_24h, url, metadata
        FROM markets
       WHERE active = TRUE
       ORDER BY updated_at DESC`
   );
-  return r.rows.map(row => ({
-    id: row.id,
-    cat: row.cat,
-    name: row.name,
-    platform: row.platform,
-    prob: row.prob == null ? null : parseFloat(row.prob),
-    prev: row.prev_prob == null ? null : parseFloat(row.prev_prob),
-    vol_24h: row.vol_24h,
-    url: row.url
-  }));
+  return r.rows.map(row => {
+    const meta = row.metadata || {};
+    return {
+      id: row.id,
+      cat: row.cat,
+      name: row.name,
+      platform: row.platform,
+      prob: row.prob == null ? null : parseFloat(row.prob),
+      prev: row.prev_prob == null ? null : parseFloat(row.prev_prob),
+      vol_24h: row.vol_24h,
+      url: row.url,
+      // For merged rows (platform='merged'), `sources` is an array of
+      // { platform, prob, vol_24h, vol_24h_num, name, url }. Single-platform
+      // markets get null.
+      sources: Array.isArray(meta.sources) ? meta.sources : null,
+      disagreement_pp: typeof meta.disagreement_pp === 'number' ? meta.disagreement_pp : null
+    };
+  });
 }
 
 async function getMarketHistory(id, { limit = 365 } = {}) {

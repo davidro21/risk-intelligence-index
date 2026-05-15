@@ -8,6 +8,7 @@ const vix = require('../feeds/vix');
 const rss = require('../feeds/rss');
 const gjopen = require('../feeds/gjopen');
 const db = require('../db/queries');
+const { mergeMarkets } = require('../feeds/merge-markets');
 
 const MARKETS_INTERVAL_MS = 30 * 1000;        // 30s
 const VIX_INTRADAY_INTERVAL_MS = 5 * 60 * 1000; // 5min
@@ -27,9 +28,13 @@ async function refreshMarkets() {
   if (_running.markets) return;
   _running.markets = true;
   try {
+    // $50K floor — per product-team call (2026-05-15). At $10K too much
+    // low-conviction speculation surfaced; $50K is the cleanest signal threshold
+    // while still keeping all event-deduped Kalshi questions (smallest survivor
+    // is the deduped 51st-state event at $90K).
     const [polyRes, kalshiRes] = await Promise.allSettled([
-      polymarket.fetchActiveMarkets({ minVol24h: 10000 }),
-      kalshi.fetchActiveMarkets({ minVol24h: 10000 })
+      polymarket.fetchActiveMarkets({ minVol24h: 50000 }),
+      kalshi.fetchActiveMarkets({ minVol24h: 50000 })
     ]);
 
     const poly = polyRes.status === 'fulfilled' ? polyRes.value : [];
@@ -37,16 +42,21 @@ async function refreshMarkets() {
     if (polyRes.status === 'rejected') console.warn('[scheduler] polymarket failed:', polyRes.reason && polyRes.reason.message);
     if (kalshiRes.status === 'rejected') console.warn('[scheduler] kalshi failed:', kalshiRes.reason && kalshiRes.reason.message);
 
-    const fresh = [...poly, ...ksh];
-    if (fresh.length === 0) {
+    const combined = [...poly, ...ksh];
+    if (combined.length === 0) {
       console.warn('[scheduler] both feeds returned 0 markets — skipping write');
       return;
     }
+    // Cross-platform merge: collapse signature-matched pairs into single
+    // merged rows with volume-weighted composite probability.
+    const fresh = mergeMarkets(combined);
     await db.upsertMarkets(fresh);
     await db.appendMarketHistory(fresh);
     await db.markStaleMarketsInactive(fresh.map(m => m.id));
     _markets = fresh;
-    console.log('[scheduler] markets refresh: ' + poly.length + ' poly + ' + ksh.length + ' kalshi = ' + fresh.length + ' total');
+    const mergedCount = fresh.filter(m => m.platform === 'merged').length;
+    console.log('[scheduler] markets refresh: ' + poly.length + ' poly + ' + ksh.length + ' kalshi → '
+                + fresh.length + ' total (' + mergedCount + ' merged)');
   } catch (err) {
     console.warn('[scheduler] markets refresh failed:', err.message);
   } finally {

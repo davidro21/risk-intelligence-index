@@ -67,7 +67,29 @@ const REJECT_KEYWORDS = [
   'pubg','call of duty','cod warzone',
   // Esports leagues / events
   'cct europe','cct asia','iem ','blast premier','blast.tv','esl pro',
-  'major group stage','pro circuit','dreamhack','intel extreme masters'
+  'major group stage','pro circuit','dreamhack','intel extreme masters',
+  // International football clubs — Saudi Pro League / AFC leak (Al Taawoun,
+  // Damac, Al Fayha, Al Riyadh) was reaching geo via "saudi" country keyword.
+  // "saudi club" anchors all Saudi Pro League titles. "afc cup" / "afc champions"
+  // catch the broader Asian football competitions. Generic regex patterns
+  // below cover the "X FC vs Y" / "X Club vs Y" / over-under structures.
+  'saudi club','afc cup','afc champions','afc asian cup',
+  'concacaf','copa libertadores','copa sudamericana','j league','k league',
+  'mls','major league soccer',
+  // Reality TV / lifestyle programming — "Love is Blind: Sweden" was
+  // leaking into geo because "sweden" isn't a geo trigger but it slipped
+  // through somewhere; reject explicitly anyway.
+  'love is blind','the bachelor','the bachelorette','the voice','american idol',
+  "dancing with the stars",'survivor cbs','big brother cbs',
+  // Generic structural patterns — sports markets often look like "X vs Y"
+  // with over/under or moneyline framing. These regexes catch the wrapper
+  // even when team names rotate league to league.
+  /\b(fc|club|united|city)\s+vs\.?\s+/i,
+  /\bvs\.?\s+[a-z][a-z\-]+\s+(fc|club|united|city)\b/i,
+  /\bo\/u\s+\d/i,
+  /:\s*o\/u\s+/i,
+  /\bmoneyline\b/i,
+  /\bpoint\s+spread\b/i
 ];
 
 function escapeRegex(s) {
